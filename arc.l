@@ -4,18 +4,108 @@
 
 
 (define-global ac (x env)
-  (if (string-literal? x) (ac-string x env)
+  (set env (or env ()))
+  (if
+    (ac-string? x) (ac-string x env)
     (ac-literal? x) x
+    (= x 'nil) (list 'quote 'nil)
+    (ac-symbol? x) (ac-var-ref x env)
+    (= (xcar x) 'quote) (list 'quote (ac-niltree (cadr x)))
     (error (cat "Bad object in expression " (string x)))))
+
+(define-global ac-string? (x)
+  (string-literal? x))
+
+(define-global ac-symbol? (x)
+  (string? x))
 
 (define-global ac-string (x env)
   x)
 
 (define-global ac-literal? (x)
   (or (boolean? x)
-      (string? x)
+      (ac-string? x)
       (number? x)
-      (and (not (atom? x)) (= (# x) 0))))
+      (and (not (atom? x)) (none? x))))
+
+(define-global xcar (x)
+  (when (not (atom? x))
+    (hd x)))
+
+(define-global xcdr (x)
+  (when (not (atom? x))
+    (tl x)))
+
+(define-global dot (unique "."))
+
+(define-global car (x)
+  (if (not x) nil
+    (atom? x) (error (cat "car: expected list, got " (string x)))
+    (if (none? x) nil
+      (let v (hd x)
+        (if (= v dot)
+          (error (cat "car: bad cons " (string x)))
+          v)))))
+
+(define-global cdr (x)
+  (if (not x) nil
+    (atom? x) (error (cat "cdr: expected list, got " (string x)))
+    (if (none? x) nil
+      (let v (tl x)
+        (if (= (xcar v) dot)
+          (if (not (one? (tl v)))
+            (error (cat "cdr: bad cons " (string x)))
+            (hd (tl v)))
+          v)))))
+
+(define-global cadr (x)
+  (car (cdr x)))
+
+(define-global cons (x y) ; doesn't work when (and (atom? x) (atom? y))
+  (if (atom? y)
+    (if y
+      `(,x ,dot ,y)
+      `(,x))
+    `(,x ,@y)))
+
+;
+; nil
+;
+
+
+(define-global ac-denil (x)
+  (if (not (atom? x)) (cons (ac-denil-car (car x)) (ac-denil-cdr (cdr x)))
+    x))
+
+(define-global ac-denil-car (x)
+  (if (= x 'nil) 'nil
+    (ac-denil x)))
+
+(define-global ac-denil-cdr (x)
+  (if (= x 'nil) '()
+    (ac-denil x)))
+
+(define-global ac-niltree (x)
+  (if (not (atom? x))
+    (if (none? x) 'nil
+      (cons (ac-niltree (car x)) (ac-niltree (cdr x))))
+    (or (not x) (= x 'nil) (= x '())) 'nil
+    x))
+
+;
+; var-ref
+;
+
+(define ac-lex? (x env)
+  (in? x env))
+
+(define ac-global-name (x)
+  (cat "_" x))
+
+(define-global ac-var-ref (x env)
+  (if (ac-lex? x env)
+    x
+    (ac-global-name x)))
 
 
 ;

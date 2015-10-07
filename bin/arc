@@ -11,8 +11,10 @@ cd "${dir}"
 
 lumen="${root}/lumen/bin/lumen"
 
-"${lumen}" -c "${home}/arc.l" -o "obj/arc.lua" -t lua
-"${lumen}" -c "${home}/arc.l" -o "obj/arc.js" -t js
+"${lumen}" -c "${home}/arc.l" -o "${home}/obj/arc.lua" -t lua
+"${lumen}" -c "${home}/arc.l" -o "${home}/obj/arc.js" -t js
+cp "${home}/obj/arc.lua" "${home}/bin/"
+cp "${home}/obj/arc.js" "${home}/bin/"
 
 
 if [ ! -z ${LUMEN_HOST} ]
@@ -40,5 +42,5 @@ case $host in
         export LUA_PATH="$LUA_PATH;${bin}/?.lua;${dir}/lib/?.lua;;";;
 esac
 
-exec "`which rlwrap`" "${lumen}" "obj/${code}" "$@"
+exec "`which rlwrap`" "${lumen}" "${home}/bin/${code}" "$@"
 
