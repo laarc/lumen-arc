@@ -413,6 +413,12 @@ ar_apply = function (f, args) {
     }
   }
 };
+__apply = function (f) {
+  var _r46 = unstash(Array.prototype.slice.call(arguments, 1));
+  var _id = _r46;
+  var args = cut(_id, 0);
+  return(ar_apply(f, ar_apply_args(args)));
+};
 ar_nil_terminate = function (l) {
   if (null63(l) || l === [] || l === "nil") {
     return([]);
@@ -420,13 +426,24 @@ ar_nil_terminate = function (l) {
     return(cons(car(l), ar_nil_terminate(cdr(l))));
   }
 };
+ar_apply_args = function (args) {
+  if (null63(args)) {
+    return([]);
+  } else {
+    if (null63(cdr(args))) {
+      return(ar_nil_terminate(car(args)));
+    } else {
+      return(cons(car(args), ar_apply_args(cdr(args))));
+    }
+  }
+};
 var delimiters = {"(": true, ")": true, "\n": true, ";": true};
 var whitespace = {" ": true, "\n": true, "\t": true};
 var peek_char = function (s) {
-  var _id = s;
-  var pos = _id.pos;
-  var len = _id.len;
-  var string = _id.string;
+  var _id1 = s;
+  var pos = _id1.pos;
+  var len = _id1.len;
+  var string = _id1.string;
   if (pos < len) {
     return(char(string, pos));
   }

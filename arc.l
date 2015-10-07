@@ -327,6 +327,8 @@
     (string? f) (char f (car args))
     (error (cat "ar-apply: bad " (string f) " " (string args)))))
 
+(xdef apply (fn (f rest: args)
+               (ar-apply f (ar-apply-args args))))
 
 ; replace the nil at the end of a list with a '()
 
@@ -335,6 +337,18 @@
       '()
       (cons (car l) (ar-nil-terminate (cdr l)))))
 
+; turn the arguments to Arc apply into a list.
+; if you call (apply fn 1 2 '(3 4))
+; then args is '(1 2 (3 4 . nil) . ())
+; that is, the main list is a lumen list.
+; and we should return '(1 2 3 4 . ())
+; was once (apply apply list (ac-denil args))
+; but that didn't work for (apply fn nil)
+
+(define-global ar-apply-args (args)
+  (if (null? args) '()
+      (null? (cdr args)) (ar-nil-terminate (car args))
+      (cons (car args) (ar-apply-args (cdr args)))))
 
 ;
 ; reader

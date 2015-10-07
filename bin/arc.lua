@@ -413,6 +413,12 @@ function ar_apply(f, args)
     end
   end
 end
+__apply = function (f, ...)
+  local _r46 = unstash({...})
+  local _id = _r46
+  local args = cut(_id, 0)
+  return(ar_apply(f, ar_apply_args(args)))
+end
 function ar_nil_terminate(l)
   if null63(l) or l == {} or l == "nil" then
     return({})
@@ -420,13 +426,24 @@ function ar_nil_terminate(l)
     return(cons(car(l), ar_nil_terminate(cdr(l))))
   end
 end
+function ar_apply_args(args)
+  if null63(args) then
+    return({})
+  else
+    if null63(cdr(args)) then
+      return(ar_nil_terminate(car(args)))
+    else
+      return(cons(car(args), ar_apply_args(cdr(args))))
+    end
+  end
+end
 local delimiters = {["("] = true, [")"] = true, ["\n"] = true, [";"] = true}
 local whitespace = {[" "] = true, ["\n"] = true, ["\t"] = true}
 local function peek_char(s)
-  local _id = s
-  local pos = _id.pos
-  local len = _id.len
-  local string = _id.string
+  local _id1 = s
+  local pos = _id1.pos
+  local len = _id1.len
+  local string = _id1.string
   if pos < len then
     return(char(string, pos))
   end
