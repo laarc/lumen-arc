@@ -17,7 +17,11 @@ ac = function (x, env) {
           if (xcar(x) === "quote") {
             return(["quote", ac_niltree(cadr(x))]);
           } else {
-            throw new Error("Bad object in expression " + string(x));
+            if (xcar(x) === "if") {
+              return(ac_if(cdr(x), env));
+            } else {
+              throw new Error("Bad object in expression " + string(x));
+            }
           }
         }
       }
@@ -46,7 +50,7 @@ xcdr = function (x) {
     return(tl(x));
   }
 };
-dot = unique(".");
+dot = unique("dot");
 car = function (x) {
   if (! x) {
     return(undefined);
@@ -94,6 +98,9 @@ cdr = function (x) {
 cadr = function (x) {
   return(car(cdr(x)));
 };
+cddr = function (x) {
+  return(cdr(cdr(x)));
+};
 cons = function (x, y) {
   if (atom63(y)) {
     if (y) {
@@ -104,6 +111,23 @@ cons = function (x, y) {
   } else {
     return(join([x], y));
   }
+};
+null63 = function (x) {
+  return(! is63(x) || ! atom63(x) && none63(x));
+};
+ac_if = function (args, env) {
+  if (null63(args)) {
+    return(["quote", "nil"]);
+  } else {
+    if (null63(cdr(args))) {
+      return(ac(car(args), env));
+    } else {
+      return(["if", ["not", ["ar-false?", ac(car(args), env)]], ac(cadr(args), env), ac_if(cddr(args), env)]);
+    }
+  }
+};
+ar_false63 = function (x) {
+  return(x === "nil" || x === undefined || x === [] || ! atom63(x) && none63(x));
 };
 ac_denil = function (x) {
   if (! atom63(x)) {
@@ -144,8 +168,9 @@ ac_niltree = function (x) {
 var ac_lex63 = function (x, env) {
   return(in63(x, env));
 };
+var _ns = unique("_");
 var ac_global_name = function (x) {
-  return("_" + x);
+  return(_ns + x);
 };
 ac_var_ref = function (x, env) {
   if (ac_lex63(x, env)) {

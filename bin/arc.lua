@@ -17,7 +17,11 @@ function ac(x, env)
           if xcar(x) == "quote" then
             return({"quote", ac_niltree(cadr(x))})
           else
-            error("Bad object in expression " .. string(x))
+            if xcar(x) == "if" then
+              return(ac_if(cdr(x), env))
+            else
+              error("Bad object in expression " .. string(x))
+            end
           end
         end
       end
@@ -46,7 +50,7 @@ function xcdr(x)
     return(tl(x))
   end
 end
-dot = unique(".")
+dot = unique("dot")
 function car(x)
   if not x then
     return(nil)
@@ -94,6 +98,9 @@ end
 function cadr(x)
   return(car(cdr(x)))
 end
+function cddr(x)
+  return(cdr(cdr(x)))
+end
 function cons(x, y)
   if atom63(y) then
     if y then
@@ -104,6 +111,23 @@ function cons(x, y)
   else
     return(join({x}, y))
   end
+end
+function null63(x)
+  return(not is63(x) or not atom63(x) and none63(x))
+end
+function ac_if(args, env)
+  if null63(args) then
+    return({"quote", "nil"})
+  else
+    if null63(cdr(args)) then
+      return(ac(car(args), env))
+    else
+      return({"if", {"not", {"ar-false?", ac(car(args), env)}}, ac(cadr(args), env), ac_if(cddr(args), env)})
+    end
+  end
+end
+function ar_false63(x)
+  return(x == "nil" or x == nil or x == {} or not atom63(x) and none63(x))
 end
 function ac_denil(x)
   if not atom63(x) then
@@ -144,8 +168,9 @@ end
 local function ac_lex63(x, env)
   return(in63(x, env))
 end
+local _ns = unique("_")
 local function ac_global_name(x)
-  return("_" .. x)
+  return(_ns .. x)
 end
 function ac_var_ref(x, env)
   if ac_lex63(x, env) then

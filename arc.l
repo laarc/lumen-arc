@@ -11,6 +11,7 @@
     (= x 'nil) (list 'quote 'nil)
     (ac-symbol? x) (ac-var-ref x env)
     (= (xcar x) 'quote) (list 'quote (ac-niltree (cadr x)))
+    (= (xcar x) 'if) (ac-if (cdr x) env)
     (error (cat "Bad object in expression " (string x)))))
 
 (define-global ac-string? (x)
@@ -36,7 +37,7 @@
   (when (not (atom? x))
     (tl x)))
 
-(define-global dot (unique "."))
+(define-global dot (unique "dot"))
 
 (define-global car (x)
   (if (not x) nil
@@ -61,12 +62,42 @@
 (define-global cadr (x)
   (car (cdr x)))
 
+(define-global cddr (x)
+  (cdr (cdr x)))
+
 (define-global cons (x y) ; doesn't work when (and (atom? x) (atom? y))
   (if (atom? y)
     (if y
       `(,x ,dot ,y)
       `(,x))
     `(,x ,@y)))
+
+(define-global null? (x)
+  (or (not (is? x))
+      (and (not (atom? x)) (none? x))))
+
+; (if) -> nil
+; (if x) -> x
+; (if t a ...) -> a
+; (if nil a b) -> b
+; (if nil a b c) -> (if b c)
+
+(define-global ac-if (args env)
+  (if (null? args) ''nil
+      (null? (cdr args)) (ac (car args) env)
+      `(if (not (ar-false? ,(ac (car args) env)))
+             ,(ac (cadr args) env)
+             ,(ac-if (cddr args) env))))
+
+; definition of falseness for Arc if.
+; must include '() since sometimes Arc functions see
+; Lumen lists (e.g. . body of a macro).
+
+(define-global ar-false? (x)
+  (or (= x 'nil)
+      (= x nil)
+      (= x '())
+      (and (not (atom? x)) (none? x))))
 
 ;
 ; nil
@@ -99,8 +130,10 @@
 (define ac-lex? (x env)
   (in? x env))
 
-(define ac-global-name (x)
-  (cat "_" x))
+
+(let ns (unique "_")
+  (define ac-global-name (x)
+    (cat ns x)))
 
 (define-global ac-var-ref (x env)
   (if (ac-lex? x env)
