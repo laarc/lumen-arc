@@ -1,0 +1,44 @@
+#!/bin/sh
+
+dir="$(pwd)"
+cd "$(dirname "$0")"
+bin="$(pwd)"
+cd ..
+home="$(pwd)"
+cd ..
+root="$(pwd)"
+cd "${dir}"
+
+lumen="${root}/lumen/bin/lumen"
+
+"${lumen}" -c "${home}/arc.l" -o "obj/arc.lua" -t lua
+"${lumen}" -c "${home}/arc.l" -o "obj/arc.js" -t js
+
+
+if [ ! -z ${LUMEN_HOST} ]
+then
+    host=${LUMEN_HOST}
+elif luajit -v > /dev/null 2>&1
+then
+    host=luajit
+elif lua -v > /dev/null 2>&1
+then
+    host=lua
+elif node -v > /dev/null 2>&1
+then
+    host=node
+else
+    echo no host found
+fi
+
+case $host in
+    node*)
+        code=arc.js
+        export NODE_PATH="$NODE_PATH:${bin}:${dir}/lib";;
+    *)
+        code=arc.lua
+        export LUA_PATH="$LUA_PATH;${bin}/?.lua;${dir}/lib/?.lua;;";;
+esac
+
+exec "`which rlwrap`" "${lumen}" "obj/${code}" "$@"
+
