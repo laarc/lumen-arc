@@ -24,7 +24,7 @@
   (string-literal? x))
 
 (define-global ac-string (x env)
-  x)
+  (escape x))
 
 (define-global ac-literal? (x)
   (or (boolean? x)
@@ -471,20 +471,42 @@
       r)))
 
 ;
+; coerce
+;
+
+(define-global ar-coerce (x type rest: args)
+  (if
+    (= type (ar-type x)) x
+    (ar-tagged? x) (error "Can't coerce annotated object")
+    (ac-string? x) (if
+                     (= type 'num) (number x)
+                     (= type 'int) (number x) ; TODO
+                     (error (cat "Can't coerce " (string x) (string type))))
+    (number? x)    (if
+                     (= type 'string) (string x)
+                     (error (cat "Can't coerce " (string x) (string type))))
+    ))
+
+(xdef coerce ar-coerce)
+
+
+;
 ; eval
 ;
 
 (define-global arc-eval (expr)
   (eval (ac expr ())))
 
-(xdef eval arc-eval)
+(xdef eval (fn (e) (eval (ac (ac-denil e) ()))))
   
-(define-macro arc exprs
-  `(last ',@(map (fn (e)
-                   (if (id-literal? e) 
-                     (map arc-eval (arc-read (inner e)))
-                     (arc-eval e)))
-                 exprs)))
+(define-macro arc (e)
+  (if (id-literal? e)
+    `(do ,@(map (fn (x) (let y (arc-eval x)
+                          ; hack around (eval `(quote ,(fn (x) x)) problem) for now
+                          (if (function? y) 'nil 
+                            y)))
+                  (arc-read (inner e))))
+    `(arc-eval ',e)))
 
 
 

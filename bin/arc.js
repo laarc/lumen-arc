@@ -47,7 +47,7 @@ ac_string63 = function (x) {
   return(string_literal63(x));
 };
 ac_string = function (x, env) {
-  return(x);
+  return(escape(x));
 };
 ac_literal63 = function (x) {
   return(boolean63(x) || ac_string63(x) || number63(x) || ! atom63(x) && none63(x));
@@ -596,17 +596,56 @@ arc_read = function (s) {
   reader["read-table"]["\""] = old_str;
   return(r);
 };
+ar_coerce = function (x, type) {
+  var _r63 = unstash(Array.prototype.slice.call(arguments, 2));
+  var _id2 = _r63;
+  var args = cut(_id2, 0);
+  if (type === ar_type(x)) {
+    return(x);
+  } else {
+    if (ar_tagged63(x)) {
+      throw new Error("Can't coerce annotated object");
+    } else {
+      if (ac_string63(x)) {
+        if (type === "num") {
+          return(number(x));
+        } else {
+          if (type === "int") {
+            return(number(x));
+          } else {
+            throw new Error("Can't coerce " + string(x) + string(type));
+          }
+        }
+      } else {
+        if (number63(x)) {
+          if (type === "string") {
+            return(string(x));
+          } else {
+            throw new Error("Can't coerce " + string(x) + string(type));
+          }
+        }
+      }
+    }
+  }
+};
+__coerce = ar_coerce;
 arc_eval = function (expr) {
   return(eval(ac(expr, [])));
 };
-__eval = arc_eval;
-setenv("arc", {_stash: true, macro: function () {
-  var exprs = unstash(Array.prototype.slice.call(arguments, 0));
-  return(["last", join(["quote"], map(function (e) {
-    if (id_literal63(e)) {
-      return(map(arc_eval, arc_read(inner(e))));
-    } else {
-      return(arc_eval(e));
-    }
-  }, exprs))]);
+__eval = function (e) {
+  return(eval(ac(ac_denil(e), [])));
+};
+setenv("arc", {_stash: true, macro: function (e) {
+  if (id_literal63(e)) {
+    return(join(["do"], map(function (x) {
+      var y = arc_eval(x);
+      if (function63(y)) {
+        return("nil");
+      } else {
+        return(y);
+      }
+    }, arc_read(inner(e)))));
+  } else {
+    return(["arc-eval", ["quote", e]]);
+  }
 }});

@@ -47,7 +47,7 @@ function ac_string63(x)
   return(string_literal63(x))
 end
 function ac_string(x, env)
-  return(x)
+  return(escape(x))
 end
 function ac_literal63(x)
   return(boolean63(x) or ac_string63(x) or number63(x) or not atom63(x) and none63(x))
@@ -596,17 +596,56 @@ function arc_read(s)
   reader["read-table"]["\""] = old_str
   return(r)
 end
+function ar_coerce(x, type, ...)
+  local _r63 = unstash({...})
+  local _id2 = _r63
+  local args = cut(_id2, 0)
+  if type == ar_type(x) then
+    return(x)
+  else
+    if ar_tagged63(x) then
+      error("Can't coerce annotated object")
+    else
+      if ac_string63(x) then
+        if type == "num" then
+          return(number(x))
+        else
+          if type == "int" then
+            return(number(x))
+          else
+            error("Can't coerce " .. string(x) .. string(type))
+          end
+        end
+      else
+        if number63(x) then
+          if type == "string" then
+            return(string(x))
+          else
+            error("Can't coerce " .. string(x) .. string(type))
+          end
+        end
+      end
+    end
+  end
+end
+__coerce = ar_coerce
 function arc_eval(expr)
   return(eval(ac(expr, {})))
 end
-__eval = arc_eval
-setenv("arc", {_stash = true, macro = function (...)
-  local exprs = unstash({...})
-  return({"last", join({"quote"}, map(function (e)
-    if id_literal63(e) then
-      return(map(arc_eval, arc_read(inner(e))))
-    else
-      return(arc_eval(e))
-    end
-  end, exprs))})
+__eval = function (e)
+  return(eval(ac(ac_denil(e), {})))
+end
+setenv("arc", {_stash = true, macro = function (e)
+  if id_literal63(e) then
+    return(join({"do"}, map(function (x)
+      local y = arc_eval(x)
+      if function63(y) then
+        return("nil")
+      else
+        return(y)
+      end
+    end, arc_read(inner(e)))))
+  else
+    return({"arc-eval", {"quote", e}})
+  end
 end})
