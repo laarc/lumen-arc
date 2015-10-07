@@ -248,6 +248,27 @@ __43 = function () {
 ___ = _;
 __47 = _47;
 __42 = _42;
+ar_622 = function (x, y) {
+  return(tnil(x > y));
+};
+__62 = function () {
+  var args = unstash(Array.prototype.slice.call(arguments, 0));
+  return(pairwise(ar_622, args));
+};
+ar_602 = function (x, y) {
+  return(tnil(x < y));
+};
+__60 = function () {
+  var args = unstash(Array.prototype.slice.call(arguments, 0));
+  return(pairwise(ar_602, args));
+};
+__len = function (x) {
+  if (string63(x)) {
+    return(_35(x));
+  } else {
+    return(_35(ar_nil_terminate(x)));
+  }
+};
 vector_type = unique("vec");
 vector = function () {
   var xs = unstash(Array.prototype.slice.call(arguments, 0));
@@ -471,8 +492,8 @@ ar_apply = function (f, args) {
   }
 };
 __apply = function (f) {
-  var _r51 = unstash(Array.prototype.slice.call(arguments, 1));
-  var _id = _r51;
+  var _r54 = unstash(Array.prototype.slice.call(arguments, 1));
+  var _id = _r54;
   var args = cut(_id, 0);
   return(ar_apply(f, ar_apply_args(args)));
 };

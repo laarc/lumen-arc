@@ -248,6 +248,27 @@ end
 ___ = _
 __47 = _47
 __42 = _42
+function ar_622(x, y)
+  return(tnil(x > y))
+end
+__62 = function (...)
+  local args = unstash({...})
+  return(pairwise(ar_622, args))
+end
+function ar_602(x, y)
+  return(tnil(x < y))
+end
+__60 = function (...)
+  local args = unstash({...})
+  return(pairwise(ar_602, args))
+end
+__len = function (x)
+  if string63(x) then
+    return(_35(x))
+  else
+    return(_35(ar_nil_terminate(x)))
+  end
+end
 vector_type = unique("vec")
 function vector(...)
   local xs = unstash({...})
@@ -471,8 +492,8 @@ function ar_apply(f, args)
   end
 end
 __apply = function (f, ...)
-  local _r51 = unstash({...})
-  local _id = _r51
+  local _r54 = unstash({...})
+  local _id = _r54
   local args = cut(_id, 0)
   return(ar_apply(f, ar_apply_args(args)))
 end

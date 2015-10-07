@@ -191,6 +191,22 @@
 (xdef / /)
 (xdef * *)
 
+; generic comparison
+;
+(define-global ar->2 (x y)
+  (tnil (> x y)))
+
+(xdef > (fn args (pairwise ar->2 args)))
+
+(define-global ar-<2 (x y)
+  (tnil (< x y)))
+
+(xdef < (fn args (pairwise ar-<2 args)))
+
+(xdef len (fn (x)
+            (if (string? x) (# x)
+              (# (ar-nil-terminate x)))))
+
 ;
 ; type
 ;
