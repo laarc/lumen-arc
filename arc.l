@@ -189,6 +189,36 @@
 (xdef / /)
 (xdef * *)
 
+
+(define-global tnil (x) (if x 't 'nil))
+
+; (pairwise pred '(a b c d)) =>
+;   (and (pred a b) (pred b c) (pred c d))
+; pred returns t/nil, as does pairwise
+; reduce? 
+
+(define-global pairwise (pred lst)
+  (if (null? lst) 't
+    (null? (cdr lst)) 't
+    (not (= (pred (car lst) (cadr lst)) 'nil))
+     (pairwise pred (cdr lst))
+    'nil))
+
+; not quite right, because behavior of underlying eqv unspecified
+; in many cases according to r5rs
+; do we really want is to ret t for distinct strings?
+
+; for (is x y)
+
+(define-global ar-is2 (a b)
+  (tnil (or (= a b)
+            (and (string? a) (string? b) (= a b))
+            (and (ar-false? a) (ar-false? b)))))
+
+; for all other uses of is
+
+(xdef is (fn args (pairwise ar-is2 args)))
+
 ;
 ; function
 ;

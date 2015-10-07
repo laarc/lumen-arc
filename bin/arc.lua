@@ -244,6 +244,35 @@ end
 ___ = _
 __47 = _47
 __42 = _42
+function tnil(x)
+  if x then
+    return("t")
+  else
+    return("nil")
+  end
+end
+function pairwise(pred, lst)
+  if null63(lst) then
+    return("t")
+  else
+    if null63(cdr(lst)) then
+      return("t")
+    else
+      if not( pred(car(lst), cadr(lst)) == "nil") then
+        return(pairwise(pred, cdr(lst)))
+      else
+        return("nil")
+      end
+    end
+  end
+end
+function ar_is2(a, b)
+  return(tnil(a == b or string63(a) and string63(b) and a == b or ar_false63(a) and ar_false63(b)))
+end
+__is = function (...)
+  local args = unstash({...})
+  return(pairwise(ar_is2, args))
+end
 function ac_body(body, env)
   return(map(function (x)
     return(ac(x, env))

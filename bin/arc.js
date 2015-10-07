@@ -244,6 +244,35 @@ __43 = function () {
 ___ = _;
 __47 = _47;
 __42 = _42;
+tnil = function (x) {
+  if (x) {
+    return("t");
+  } else {
+    return("nil");
+  }
+};
+pairwise = function (pred, lst) {
+  if (null63(lst)) {
+    return("t");
+  } else {
+    if (null63(cdr(lst))) {
+      return("t");
+    } else {
+      if (!( pred(car(lst), cadr(lst)) === "nil")) {
+        return(pairwise(pred, cdr(lst)));
+      } else {
+        return("nil");
+      }
+    }
+  }
+};
+ar_is2 = function (a, b) {
+  return(tnil(a === b || string63(a) && string63(b) && a === b || ar_false63(a) && ar_false63(b)));
+};
+__is = function () {
+  var args = unstash(Array.prototype.slice.call(arguments, 0));
+  return(pairwise(ar_is2, args));
+};
 ac_body = function (body, env) {
   return(map(function (x) {
     return(ac(x, env));
