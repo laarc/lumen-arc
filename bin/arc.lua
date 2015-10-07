@@ -23,10 +23,14 @@ function ac(x, env)
               if xcar(x) == "fn" then
                 return(ac_fn(cadr(x), cddr(x), env))
               else
-                if not atom63(x) then
-                  return(ac_call(car(x), cdr(x), env))
+                if xcar(x) == "assign" then
+                  return(ac_set(cdr(x), env))
                 else
-                  error("Bad object in expression " .. string(x))
+                  if not atom63(x) then
+                    return(ac_call(car(x), cdr(x), env))
+                  else
+                    error("Bad object in expression " .. string(x))
+                  end
                 end
               end
             end
@@ -194,7 +198,7 @@ function ac_niltree(x)
     end
   end
 end
-local function ac_lex63(x, env)
+function ac_lex63(x, env)
   return(in63(x, env))
 end
 ac_namespace = unique("_")
@@ -273,6 +277,44 @@ __is = function (...)
   local args = unstash({...})
   return(pairwise(ar_is2, args))
 end
+function ac_set(x, env)
+  return(join({"do"}, ac_setn(x, env)))
+end
+function ac_setn(x, env)
+  if null63(x) then
+    return({})
+  else
+    return(cons(ac_set1(ac_macex(car(x)), cadr(x), env), ac_setn(cddr(x), env)))
+  end
+end
+function ac_set1(a, b1, env)
+  if ac_symbol63(a) then
+    local b = ac(b1, ac_dbname33(a, env))
+    local _e
+    if a == "nil" then
+      error("Can't rebind nil")
+      _e = nil
+    else
+      local _e1
+      if a == "t" then
+        error("Can't rebind t")
+        _e1 = nil
+      else
+        local _e2
+        if ac_lex63(a, env) then
+          _e2 = {"set", a, "zz"}
+        else
+          _e2 = {"set", ac_global_name(a), "zz"}
+        end
+        _e1 = _e2
+      end
+      _e = _e1
+    end
+    return({"let", "zz", b, _e, "zz"})
+  else
+    return(err("First arg to set must be a symbol", a))
+  end
+end
 function ac_body(body, env)
   return(map(function (x)
     return(ac(x, env))
@@ -287,13 +329,13 @@ function ac_body42(body, env)
 end
 function ac_fn(args, body, env)
   local a = ac_denil(args)
-  local _e
+  local _e3
   if a == "nil" then
-    _e = {}
+    _e3 = {}
   else
-    _e = a
+    _e3 = a
   end
-  return(join({"fn", _e}, ac_body42(body, join(ac_arglist(args), env))))
+  return(join({"fn", _e3}, ac_body42(body, join(ac_arglist(args), env))))
 end
 function ac_arglist(a)
   if null63(a) then
@@ -319,21 +361,41 @@ function ac_call(f, args, env)
     end, args))})
   end
 end
+function ac_macro63(f)
+  return(false)
+end
+function ac_macex(e, once)
+  if pair63(e) then
+    local m = ac_macro63(car(e))
+    if m then
+      local expansion = ac_denil(apply(m, map(ac_niltree, cdr(e))))
+      if null63(once) then
+        return(ac_macex(expansion))
+      else
+        return(expansion)
+      end
+    else
+      return(e)
+    end
+  else
+    return(e)
+  end
+end
 function ac_args(names, exprs, env)
   if null63(exprs) then
     return({})
   else
-    local _e1
+    local _e4
     if pair63(names) then
-      _e1 = car(names)
+      _e4 = car(names)
     end
-    local _e2
+    local _e5
     if pair63(names) then
-      _e2 = cdr(names)
+      _e5 = cdr(names)
     else
-      _e2 = {}
+      _e5 = {}
     end
-    return(cons(ac(car(exprs), ac_dbname33(_e1, env)), ac_args(_e2, cdr(exprs), env)))
+    return(cons(ac(car(exprs), ac_dbname33(_e4, env)), ac_args(_e5, cdr(exprs), env)))
   end
 end
 function ar_apply(f, args)

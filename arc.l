@@ -13,6 +13,7 @@
     (= (xcar x) 'quote) (list 'quote (ac-niltree (cadr x)))
     (= (xcar x) 'if) (ac-if (cdr x) env)
     (= (xcar x) 'fn) (ac-fn (cadr x) (cddr x) env)
+    (= (xcar x) 'assign) (ac-set (cdr x) env)
     (not (atom? x)) (ac-call (car x) (cdr x) env)
     (error (cat "Bad object in expression " (string x)))))
 
@@ -143,7 +144,7 @@
 ; var-ref
 ;
 
-(define ac-lex? (x env)
+(define-global ac-lex? (x env)
   (in? x env))
 
 
@@ -220,6 +221,36 @@
 (xdef is (fn args (pairwise ar-is2 args)))
 
 ;
+; assignment
+;
+
+; (set v1 expr1 v2 expr2 ...)
+
+(define-global ac-set (x env)
+  `(do ,@(ac-setn x env)))
+
+(define-global ac-setn (x env)
+  (if (null? x)
+      '()
+      (cons (ac-set1 (ac-macex (car x)) (cadr x) env)
+            (ac-setn (cddr x) env))))
+
+; = replaced by set, which is only for vars
+; = now defined in arc (is it?)
+; name is to cause fns to have their arc names for debugging
+
+(define-global ac-set1 (a b1 env)
+  (if (ac-symbol? a)
+      (let b (ac b1 (ac-dbname! a env))
+        (list 'let 'zz b
+               (if (= a 'nil) (error "Can't rebind nil")
+                   (= a 't) (error "Can't rebind t")
+                   (ac-lex? a env) `(set ,a zz)
+                   `(set ,(ac-global-name a) zz))
+               'zz))
+      (err "First arg to set must be a symbol" a)))
+
+;
 ; function
 ;
 
@@ -248,6 +279,33 @@
   (if (= (xcar f) 'fn)
     `(,(ac f env) ,@(ac-args (cadr f) args env))
     `(ar-apply ,(ac f env) (list ,@(map (fn (x) (ac x env)) args)))))
+
+; returns false or the macro function
+
+(define-global ac-macro? (f)
+  ; TODO
+  ; (if (ac-symbol? fn)
+  ;     (let ((v (namespace-variable-value (ac-global-name fn) 
+  ;                                        #t 
+  ;                                        (lambda () #f))))
+  ;       (if (and v
+  ;                (ar-tagged? v)
+  ;                (eq? (ar-type v) 'mac))
+  ;           (ar-rep v)
+  ;           #f))
+  ;     #f))
+  false)
+
+; macroexpand the outer call of a form as much as possible
+
+(define-global ac-macex (e once)
+  (if (pair? e)
+      (let m (ac-macro? (car e))
+        (if m
+            (let expansion (ac-denil (apply m (map ac-niltree (cdr e))))
+              (if (null? once) (ac-macex expansion) expansion))
+            e))
+      e))
 
 
 ; given a list of Arc expressions, return a list of Scheme expressions.

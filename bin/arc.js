@@ -23,10 +23,14 @@ ac = function (x, env) {
               if (xcar(x) === "fn") {
                 return(ac_fn(cadr(x), cddr(x), env));
               } else {
-                if (! atom63(x)) {
-                  return(ac_call(car(x), cdr(x), env));
+                if (xcar(x) === "assign") {
+                  return(ac_set(cdr(x), env));
                 } else {
-                  throw new Error("Bad object in expression " + string(x));
+                  if (! atom63(x)) {
+                    return(ac_call(car(x), cdr(x), env));
+                  } else {
+                    throw new Error("Bad object in expression " + string(x));
+                  }
                 }
               }
             }
@@ -194,7 +198,7 @@ ac_niltree = function (x) {
     }
   }
 };
-var ac_lex63 = function (x, env) {
+ac_lex63 = function (x, env) {
   return(in63(x, env));
 };
 ac_namespace = unique("_");
@@ -273,6 +277,44 @@ __is = function () {
   var args = unstash(Array.prototype.slice.call(arguments, 0));
   return(pairwise(ar_is2, args));
 };
+ac_set = function (x, env) {
+  return(join(["do"], ac_setn(x, env)));
+};
+ac_setn = function (x, env) {
+  if (null63(x)) {
+    return([]);
+  } else {
+    return(cons(ac_set1(ac_macex(car(x)), cadr(x), env), ac_setn(cddr(x), env)));
+  }
+};
+ac_set1 = function (a, b1, env) {
+  if (ac_symbol63(a)) {
+    var b = ac(b1, ac_dbname33(a, env));
+    var _e;
+    if (a === "nil") {
+      throw new Error("Can't rebind nil");
+      _e = undefined;
+    } else {
+      var _e1;
+      if (a === "t") {
+        throw new Error("Can't rebind t");
+        _e1 = undefined;
+      } else {
+        var _e2;
+        if (ac_lex63(a, env)) {
+          _e2 = ["set", a, "zz"];
+        } else {
+          _e2 = ["set", ac_global_name(a), "zz"];
+        }
+        _e1 = _e2;
+      }
+      _e = _e1;
+    }
+    return(["let", "zz", b, _e, "zz"]);
+  } else {
+    return(err("First arg to set must be a symbol", a));
+  }
+};
 ac_body = function (body, env) {
   return(map(function (x) {
     return(ac(x, env));
@@ -287,13 +329,13 @@ ac_body42 = function (body, env) {
 };
 ac_fn = function (args, body, env) {
   var a = ac_denil(args);
-  var _e;
+  var _e3;
   if (a === "nil") {
-    _e = [];
+    _e3 = [];
   } else {
-    _e = a;
+    _e3 = a;
   }
-  return(join(["fn", _e], ac_body42(body, join(ac_arglist(args), env))));
+  return(join(["fn", _e3], ac_body42(body, join(ac_arglist(args), env))));
 };
 ac_arglist = function (a) {
   if (null63(a)) {
@@ -319,21 +361,41 @@ ac_call = function (f, args, env) {
     }, args))]);
   }
 };
+ac_macro63 = function (f) {
+  return(false);
+};
+ac_macex = function (e, once) {
+  if (pair63(e)) {
+    var m = ac_macro63(car(e));
+    if (m) {
+      var expansion = ac_denil(apply(m, map(ac_niltree, cdr(e))));
+      if (null63(once)) {
+        return(ac_macex(expansion));
+      } else {
+        return(expansion);
+      }
+    } else {
+      return(e);
+    }
+  } else {
+    return(e);
+  }
+};
 ac_args = function (names, exprs, env) {
   if (null63(exprs)) {
     return([]);
   } else {
-    var _e1;
+    var _e4;
     if (pair63(names)) {
-      _e1 = car(names);
+      _e4 = car(names);
     }
-    var _e2;
+    var _e5;
     if (pair63(names)) {
-      _e2 = cdr(names);
+      _e5 = cdr(names);
     } else {
-      _e2 = [];
+      _e5 = [];
     }
-    return(cons(ac(car(exprs), ac_dbname33(_e1, env)), ac_args(_e2, cdr(exprs), env)));
+    return(cons(ac(car(exprs), ac_dbname33(_e4, env)), ac_args(_e5, cdr(exprs), env)));
   }
 };
 ar_apply = function (f, args) {
