@@ -40,11 +40,11 @@ function ac(x, env)
     end
   end
 end
-function ac_string63(x)
-  return(string_literal63(x))
-end
 function ac_symbol63(x)
   return(string63(x))
+end
+function ac_string63(x)
+  return(string_literal63(x))
 end
 function ac_string(x, env)
   return(x)
@@ -124,11 +124,11 @@ function cons(x, y)
     return(join({x}, y))
   end
 end
-function null63(x)
-  return(not is63(x) or not atom63(x) and none63(x))
-end
 function pair63(x)
-  return(not atom63(x))
+  return(not atom63(x) and not function63(x))
+end
+function null63(x)
+  return(not is63(x) or pair63(x) and none63(x))
 end
 function ac_if(args, env)
   if null63(args) then
@@ -248,6 +248,63 @@ end
 ___ = _
 __47 = _47
 __42 = _42
+vector_type = unique("vec")
+function vector(...)
+  local xs = unstash({...})
+  return(join({vector_type}, xs))
+end
+function vector63(x)
+  return(pair63(x) and car(x) == vector_type)
+end
+function vector_ref(x, i)
+  if not vector63(x) then
+    error("vector-ref: expected vector, got " .. string(x))
+  end
+  return(x[i + 1 + 1])
+end
+function ar_tagged63(x)
+  return(vector63(x) and vector_ref(x, 0) == "tagged")
+end
+function ar_tag(type, rep)
+  if ar_type(rep) == type then
+    return(rep)
+  else
+    return(vector("tagged", type, rep))
+  end
+end
+__annotate = ar_tag
+function ar_type(x)
+  if ar_tagged63(x) then
+    return(vector_ref(x, 1))
+  else
+    if pair63(x) then
+      return("cons")
+    else
+      if ac_string63(x) then
+        return("string")
+      else
+        if ac_symbol63(x) then
+          return("sym")
+        else
+          if null63(x) then
+            return("sym")
+          else
+            if function63(x) then
+              return("fn")
+            else
+              if number63(x) then
+                return("num")
+              else
+                error("Type: unknown type " .. string(x))
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+__type = ar_type
 function tnil(x)
   if x then
     return("t")
@@ -414,8 +471,8 @@ function ar_apply(f, args)
   end
 end
 __apply = function (f, ...)
-  local _r46 = unstash({...})
-  local _id = _r46
+  local _r51 = unstash({...})
+  local _id = _r51
   local args = cut(_id, 0)
   return(ar_apply(f, ar_apply_args(args)))
 end
@@ -477,7 +534,7 @@ local function skip_non_code(s)
   end
 end
 local literals = {["-nan"] = 0 / 0, ["false"] = false, nan = 0 / 0, ["true"] = true, ["-inf"] = -1 / 0, inf = 1 / 0}
-local function read_atom(s)
+local function ac_read_atom(s)
   local str = ""
   while true do
     local c = peek_char(s)
@@ -499,13 +556,36 @@ local function read_atom(s)
     end
   end
 end
+local _f = reader["read-table"]["\""]
+local function ac_read_string(s)
+  local str = _f(s)
+  if not str then
+    return("")
+  else
+    return(escape(str))
+  end
+end
 function arc_read(s)
-  local old = reader["read-table"][""]
-  reader["read-table"][""] = read_atom
-  local r = reader["read-string"](s)
-  reader["read-table"][""] = old
+  local old_atom = reader["read-table"][""]
+  local old_str = reader["read-table"]["\""]
+  reader["read-table"][""] = ac_read_atom
+  reader["read-table"]["\""] = ac_read_string
+  local r = reader["read-all"](reader.stream(s))
+  reader["read-table"][""] = old_atom
+  reader["read-table"]["\""] = old_str
   return(r)
 end
 function arc_eval(expr)
   return(eval(ac(expr, {})))
 end
+__eval = arc_eval
+setenv("arc", {_stash = true, macro = function (...)
+  local exprs = unstash({...})
+  return({"last", join({"quote"}, map(function (e)
+    if id_literal63(e) then
+      return(map(arc_eval, arc_read(inner(e))))
+    else
+      return(arc_eval(e))
+    end
+  end, exprs))})
+end})

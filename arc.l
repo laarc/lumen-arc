@@ -17,11 +17,11 @@
     (not (atom? x)) (ac-call (car x) (cdr x) env)
     (error (cat "Bad object in expression " (string x)))))
 
-(define-global ac-string? (x)
-  (string-literal? x))
-
 (define-global ac-symbol? (x)
   (string? x))
+
+(define-global ac-string? (x)
+  (string-literal? x))
 
 (define-global ac-string (x env)
   x)
@@ -75,12 +75,13 @@
       `(,x))
     `(,x ,@y)))
 
+(define-global pair? (x)
+  (and (not (atom? x))
+       (not (function? x))))
+
 (define-global null? (x)
   (or (not (is? x))
-      (and (not (atom? x)) (none? x))))
-
-(define-global pair? (x)
-  (not (atom? x)))
+      (and (pair? x) (none? x))))
 
 ; (if) -> nil
 ; (if x) -> x
@@ -190,6 +191,47 @@
 (xdef / /)
 (xdef * *)
 
+;
+; type
+;
+
+(define-global vector-type (unique "vec"))
+
+(define-global vector xs
+  `(,vector-type ,@xs))
+
+(define-global vector? (x)
+  (and (pair? x) (= (car x) vector-type)))
+
+(define-global vector-ref (x i)
+  (unless (vector? x)
+    (error (cat "vector-ref: expected vector, got " (string x))))
+  (at x (+ i 1)))
+
+(define-global ar-tagged? (x)
+  (and (vector? x) (= (vector-ref x 0) 'tagged)))
+
+(define-global ar-tag (type rep)
+  (if (= (ar-type rep) type) rep
+    (vector 'tagged type rep)))
+
+(xdef annotate ar-tag)
+
+(define-global ar-type (x)
+  (if (ar-tagged? x) (vector-ref x 1)
+    (pair? x) 'cons
+    (ac-string? x) 'string
+    (ac-symbol? x) 'sym
+    (null? x) 'sym
+    (function? x) 'fn
+    (number? x) 'num
+    (error (cat "Type: unknown type " (string x)))))
+
+(xdef type ar-type)
+
+;
+; is
+;
 
 (define-global tnil (x) (if x 't 'nil))
 
@@ -382,7 +424,7 @@
        nan: (/ 0 0) -nan: (/ 0 0)
        inf: (/ 1 0) -inf: (/ -1 0)))
 
-(define read-atom (s)
+(define ac-read-atom (s)
   (let (str "")
     (while true
       (let c (peek-char s)
@@ -396,13 +438,21 @@
           (if (not (or (nil? n) (nan? n) (inf? n))) n
             str))))))
 
-(define-global arc-read (s)
-  (let old (get reader.read-table "")
-    (set (get reader.read-table "") read-atom)
-    (let r (reader.read-string s)
-      (set (get reader.read-table "") old)
-      r)))
+(let f (get reader.read-table "\"")
+  (define ac-read-string (s)
+    (let str (f s)
+      (if (not str) ""
+        (escape str)))))
 
+(define-global arc-read (s)
+  (let (old-atom (get reader.read-table "")
+        old-str (get reader.read-table "\""))
+    (set (get reader.read-table "") ac-read-atom)
+    (set (get reader.read-table "\"") ac-read-string)
+    (let r (reader.read-all (reader.stream s))
+      (set (get reader.read-table "") old-atom)
+      (set (get reader.read-table "\"") old-str)
+      r)))
 
 ;
 ; eval
@@ -410,8 +460,15 @@
 
 (define-global arc-eval (expr)
   (eval (ac expr ())))
-  
 
+(xdef eval arc-eval)
+  
+(define-macro arc exprs
+  `(last ',@(map (fn (e)
+                   (if (id-literal? e) 
+                     (map arc-eval (arc-read (inner e)))
+                     (arc-eval e)))
+                 exprs)))
 
 
 

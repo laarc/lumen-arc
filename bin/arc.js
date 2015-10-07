@@ -40,11 +40,11 @@ ac = function (x, env) {
     }
   }
 };
-ac_string63 = function (x) {
-  return(string_literal63(x));
-};
 ac_symbol63 = function (x) {
   return(string63(x));
+};
+ac_string63 = function (x) {
+  return(string_literal63(x));
 };
 ac_string = function (x, env) {
   return(x);
@@ -124,11 +124,11 @@ cons = function (x, y) {
     return(join([x], y));
   }
 };
-null63 = function (x) {
-  return(! is63(x) || ! atom63(x) && none63(x));
-};
 pair63 = function (x) {
-  return(! atom63(x));
+  return(! atom63(x) && ! function63(x));
+};
+null63 = function (x) {
+  return(! is63(x) || pair63(x) && none63(x));
 };
 ac_if = function (args, env) {
   if (null63(args)) {
@@ -248,6 +248,63 @@ __43 = function () {
 ___ = _;
 __47 = _47;
 __42 = _42;
+vector_type = unique("vec");
+vector = function () {
+  var xs = unstash(Array.prototype.slice.call(arguments, 0));
+  return(join([vector_type], xs));
+};
+vector63 = function (x) {
+  return(pair63(x) && car(x) === vector_type);
+};
+vector_ref = function (x, i) {
+  if (! vector63(x)) {
+    throw new Error("vector-ref: expected vector, got " + string(x));
+  }
+  return(x[i + 1]);
+};
+ar_tagged63 = function (x) {
+  return(vector63(x) && vector_ref(x, 0) === "tagged");
+};
+ar_tag = function (type, rep) {
+  if (ar_type(rep) === type) {
+    return(rep);
+  } else {
+    return(vector("tagged", type, rep));
+  }
+};
+__annotate = ar_tag;
+ar_type = function (x) {
+  if (ar_tagged63(x)) {
+    return(vector_ref(x, 1));
+  } else {
+    if (pair63(x)) {
+      return("cons");
+    } else {
+      if (ac_string63(x)) {
+        return("string");
+      } else {
+        if (ac_symbol63(x)) {
+          return("sym");
+        } else {
+          if (null63(x)) {
+            return("sym");
+          } else {
+            if (function63(x)) {
+              return("fn");
+            } else {
+              if (number63(x)) {
+                return("num");
+              } else {
+                throw new Error("Type: unknown type " + string(x));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+__type = ar_type;
 tnil = function (x) {
   if (x) {
     return("t");
@@ -414,8 +471,8 @@ ar_apply = function (f, args) {
   }
 };
 __apply = function (f) {
-  var _r46 = unstash(Array.prototype.slice.call(arguments, 1));
-  var _id = _r46;
+  var _r51 = unstash(Array.prototype.slice.call(arguments, 1));
+  var _id = _r51;
   var args = cut(_id, 0);
   return(ar_apply(f, ar_apply_args(args)));
 };
@@ -477,7 +534,7 @@ var skip_non_code = function (s) {
   }
 };
 var literals = {"-nan": 0 / 0, "false": false, nan: 0 / 0, "true": true, "-inf": -1 / 0, inf: 1 / 0};
-var read_atom = function (s) {
+var ac_read_atom = function (s) {
   var str = "";
   while (true) {
     var c = peek_char(s);
@@ -499,13 +556,36 @@ var read_atom = function (s) {
     }
   }
 };
+var _f = reader["read-table"]["\""];
+var ac_read_string = function (s) {
+  var str = _f(s);
+  if (! str) {
+    return("");
+  } else {
+    return(escape(str));
+  }
+};
 arc_read = function (s) {
-  var old = reader["read-table"][""];
-  reader["read-table"][""] = read_atom;
-  var r = reader["read-string"](s);
-  reader["read-table"][""] = old;
+  var old_atom = reader["read-table"][""];
+  var old_str = reader["read-table"]["\""];
+  reader["read-table"][""] = ac_read_atom;
+  reader["read-table"]["\""] = ac_read_string;
+  var r = reader["read-all"](reader.stream(s));
+  reader["read-table"][""] = old_atom;
+  reader["read-table"]["\""] = old_str;
   return(r);
 };
 arc_eval = function (expr) {
   return(eval(ac(expr, [])));
 };
+__eval = arc_eval;
+setenv("arc", {_stash: true, macro: function () {
+  var exprs = unstash(Array.prototype.slice.call(arguments, 0));
+  return(["last", join(["quote"], map(function (e) {
+    if (id_literal63(e)) {
+      return(map(arc_eval, arc_read(inner(e))));
+    } else {
+      return(arc_eval(e));
+    }
+  }, exprs))]);
+}});
