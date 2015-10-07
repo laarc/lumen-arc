@@ -12,6 +12,8 @@
     (ac-symbol? x) (ac-var-ref x env)
     (= (xcar x) 'quote) (list 'quote (ac-niltree (cadr x)))
     (= (xcar x) 'if) (ac-if (cdr x) env)
+    (= (xcar x) 'fn) (ac-fn (cadr x) (cddr x) env)
+    (not (atom? x)) (ac-call (car x) (cdr x) env)
     (error (cat "Bad object in expression " (string x)))))
 
 (define-global ac-string? (x)
@@ -76,6 +78,9 @@
   (or (not (is? x))
       (and (not (atom? x)) (none? x))))
 
+(define-global pair? (x)
+  (not (atom? x)))
+
 ; (if) -> nil
 ; (if x) -> x
 ; (if t a ...) -> a
@@ -88,6 +93,17 @@
       `(if (not (ar-false? ,(ac (car args) env)))
              ,(ac (cadr args) env)
              ,(ac-if (cddr args) env))))
+
+(define-global ac-dbname! (name env)
+  (if (ac-symbol? name)
+      (cons (list name) env)
+      env))
+
+(define-global ac-dbname (env)
+  (if (null? env) false
+      (pair? (car env)) (caar env)
+      (ac-dbname (cdr env))))
+
 
 ; definition of falseness for Arc if.
 ; must include '() since sometimes Arc functions see
@@ -131,15 +147,86 @@
   (in? x env))
 
 
-(let ns (unique "_")
-  (define ac-global-name (x)
-    (cat ns x)))
+(define-global ac-namespace (unique "_"))
+
+(define-global ac-global-name (x)
+  (cat ac-namespace x))
 
 (define-global ac-var-ref (x env)
   (if (ac-lex? x env)
     x
     (ac-global-name x)))
 
+;
+; xdef
+;
+
+(define-macro xdef (a b)
+  ; `(set ,(ac-global-name a) ,b)) ; I wonder why this doesn't work?
+  `(set ,(cat "__" a) ,b))
+
+(xdef car car)
+(xdef cdr cdr)
+(xdef cons cons)
+(xdef t 't)
+(xdef nil 'nil)
+
+(xdef list (fn lst lst))
+
+(xdef + +)
+(xdef - -)
+(xdef / /)
+(xdef * *)
+
+;
+; function
+;
+
+
+(define-global ac-body (body env)
+  (map (fn (x) (ac x env)) body))
+
+; like ac-body, but spits out a nil expression if empty
+
+(define-global ac-body* (body env)
+  (if (null? body)
+      (list (list 'quote 'nil))
+      (ac-body body env)))
+
+(define-global ac-fn (args body env)
+  `(fn ,(let a (ac-denil args) (if (= a 'nil) '() a))
+     ,@(ac-body* body (join (ac-arglist args) env))))
+
+(define-global ac-arglist (a)
+  (if (null? a) '()
+    (ac-symbol? a) (list a)
+    (ac-symbol? (cdr a)) (list (car a) (cdr a))
+    (cons (car a) (ac-arglist (cdr a)))))
+
+(define-global ac-call (f args env)
+  (if (= (xcar f) 'fn)
+    `(,(ac f env) ,@(ac-args (cadr f) args env))
+    `(ar-apply ,(ac f env) (list ,@(map (fn (x) (ac x env)) args)))))
+
+
+; given a list of Arc expressions, return a list of Scheme expressions.
+; for compiling passed arguments.
+
+(define-global ac-args (names exprs env)
+  (if (null? exprs)
+      '()
+      (cons (ac (car exprs)
+                (ac-dbname! (if (pair? names) (car names) false) env))
+            (ac-args (if (pair? names) (cdr names) '())
+                     (cdr exprs)
+                     env))))
+
+
+(define-global ar-apply (f args)
+  (if (function? f) (apply f args)
+    (not (atom? f)) (at f (car args))
+    (string? f) (char f (car args))
+    (error (cat "ar-apply: bad " (string f) " " (string args)))))
 
 ;
 ; reader

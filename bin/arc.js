@@ -20,7 +20,15 @@ ac = function (x, env) {
             if (xcar(x) === "if") {
               return(ac_if(cdr(x), env));
             } else {
-              throw new Error("Bad object in expression " + string(x));
+              if (xcar(x) === "fn") {
+                return(ac_fn(cadr(x), cddr(x), env));
+              } else {
+                if (! atom63(x)) {
+                  return(ac_call(car(x), cdr(x), env));
+                } else {
+                  throw new Error("Bad object in expression " + string(x));
+                }
+              }
             }
           }
         }
@@ -115,6 +123,9 @@ cons = function (x, y) {
 null63 = function (x) {
   return(! is63(x) || ! atom63(x) && none63(x));
 };
+pair63 = function (x) {
+  return(! atom63(x));
+};
 ac_if = function (args, env) {
   if (null63(args)) {
     return(["quote", "nil"]);
@@ -123,6 +134,24 @@ ac_if = function (args, env) {
       return(ac(car(args), env));
     } else {
       return(["if", ["not", ["ar-false?", ac(car(args), env)]], ac(cadr(args), env), ac_if(cddr(args), env)]);
+    }
+  }
+};
+ac_dbname33 = function (name, env) {
+  if (ac_symbol63(name)) {
+    return(cons([name], env));
+  } else {
+    return(env);
+  }
+};
+ac_dbname = function (env) {
+  if (null63(env)) {
+    return(false);
+  } else {
+    if (pair63(car(env))) {
+      return(caar(env));
+    } else {
+      return(ac_dbname(cdr(env)));
     }
   }
 };
@@ -168,15 +197,109 @@ ac_niltree = function (x) {
 var ac_lex63 = function (x, env) {
   return(in63(x, env));
 };
-var _ns = unique("_");
-var ac_global_name = function (x) {
-  return(_ns + x);
+ac_namespace = unique("_");
+ac_global_name = function (x) {
+  return(ac_namespace + x);
 };
 ac_var_ref = function (x, env) {
   if (ac_lex63(x, env)) {
     return(x);
   } else {
     return(ac_global_name(x));
+  }
+};
+setenv("xdef", {_stash: true, macro: function (a, b) {
+  return(["set", "__" + a, b]);
+}});
+__car = car;
+__cdr = cdr;
+__cons = cons;
+__t = "t";
+__nil = "nil";
+__list = function () {
+  var lst = unstash(Array.prototype.slice.call(arguments, 0));
+  return(lst);
+};
+__43 = _43;
+___ = _;
+__47 = _47;
+__42 = _42;
+ac_body = function (body, env) {
+  return(map(function (x) {
+    return(ac(x, env));
+  }, body));
+};
+ac_body42 = function (body, env) {
+  if (null63(body)) {
+    return([["quote", "nil"]]);
+  } else {
+    return(ac_body(body, env));
+  }
+};
+ac_fn = function (args, body, env) {
+  var a = ac_denil(args);
+  var _e;
+  if (a === "nil") {
+    _e = [];
+  } else {
+    _e = a;
+  }
+  return(join(["fn", _e], ac_body42(body, join(ac_arglist(args), env))));
+};
+ac_arglist = function (a) {
+  if (null63(a)) {
+    return([]);
+  } else {
+    if (ac_symbol63(a)) {
+      return([a]);
+    } else {
+      if (ac_symbol63(cdr(a))) {
+        return([car(a), cdr(a)]);
+      } else {
+        return(cons(car(a), ac_arglist(cdr(a))));
+      }
+    }
+  }
+};
+ac_call = function (f, args, env) {
+  if (xcar(f) === "fn") {
+    return(join([ac(f, env)], ac_args(cadr(f), args, env)));
+  } else {
+    return(["ar-apply", ac(f, env), join(["list"], map(function (x) {
+      return(ac(x, env));
+    }, args))]);
+  }
+};
+ac_args = function (names, exprs, env) {
+  if (null63(exprs)) {
+    return([]);
+  } else {
+    var _e1;
+    if (pair63(names)) {
+      _e1 = car(names);
+    }
+    var _e2;
+    if (pair63(names)) {
+      _e2 = cdr(names);
+    } else {
+      _e2 = [];
+    }
+    return(cons(ac(car(exprs), ac_dbname33(_e1, env)), ac_args(_e2, cdr(exprs), env)));
+  }
+};
+ar_apply = function (f, args) {
+  if (function63(f)) {
+    return(apply(f, args));
+  } else {
+    if (! atom63(f)) {
+      return(f[car(args)]);
+    } else {
+      if (string63(f)) {
+        return(char(f, car(args)));
+      } else {
+        throw new Error("ar-apply: bad " + string(f) + " " + string(args));
+      }
+    }
   }
 };
 var delimiters = {"(": true, ")": true, "\n": true, ";": true};

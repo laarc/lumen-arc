@@ -20,7 +20,15 @@ function ac(x, env)
             if xcar(x) == "if" then
               return(ac_if(cdr(x), env))
             else
-              error("Bad object in expression " .. string(x))
+              if xcar(x) == "fn" then
+                return(ac_fn(cadr(x), cddr(x), env))
+              else
+                if not atom63(x) then
+                  return(ac_call(car(x), cdr(x), env))
+                else
+                  error("Bad object in expression " .. string(x))
+                end
+              end
             end
           end
         end
@@ -115,6 +123,9 @@ end
 function null63(x)
   return(not is63(x) or not atom63(x) and none63(x))
 end
+function pair63(x)
+  return(not atom63(x))
+end
 function ac_if(args, env)
   if null63(args) then
     return({"quote", "nil"})
@@ -123,6 +134,24 @@ function ac_if(args, env)
       return(ac(car(args), env))
     else
       return({"if", {"not", {"ar-false?", ac(car(args), env)}}, ac(cadr(args), env), ac_if(cddr(args), env)})
+    end
+  end
+end
+function ac_dbname33(name, env)
+  if ac_symbol63(name) then
+    return(cons({name}, env))
+  else
+    return(env)
+  end
+end
+function ac_dbname(env)
+  if null63(env) then
+    return(false)
+  else
+    if pair63(car(env)) then
+      return(caar(env))
+    else
+      return(ac_dbname(cdr(env)))
     end
   end
 end
@@ -168,15 +197,109 @@ end
 local function ac_lex63(x, env)
   return(in63(x, env))
 end
-local _ns = unique("_")
-local function ac_global_name(x)
-  return(_ns .. x)
+ac_namespace = unique("_")
+function ac_global_name(x)
+  return(ac_namespace .. x)
 end
 function ac_var_ref(x, env)
   if ac_lex63(x, env) then
     return(x)
   else
     return(ac_global_name(x))
+  end
+end
+setenv("xdef", {_stash = true, macro = function (a, b)
+  return({"set", "__" .. a, b})
+end})
+__car = car
+__cdr = cdr
+__cons = cons
+__t = "t"
+__nil = "nil"
+__list = function (...)
+  local lst = unstash({...})
+  return(lst)
+end
+__43 = _43
+___ = _
+__47 = _47
+__42 = _42
+function ac_body(body, env)
+  return(map(function (x)
+    return(ac(x, env))
+  end, body))
+end
+function ac_body42(body, env)
+  if null63(body) then
+    return({{"quote", "nil"}})
+  else
+    return(ac_body(body, env))
+  end
+end
+function ac_fn(args, body, env)
+  local a = ac_denil(args)
+  local _e
+  if a == "nil" then
+    _e = {}
+  else
+    _e = a
+  end
+  return(join({"fn", _e}, ac_body42(body, join(ac_arglist(args), env))))
+end
+function ac_arglist(a)
+  if null63(a) then
+    return({})
+  else
+    if ac_symbol63(a) then
+      return({a})
+    else
+      if ac_symbol63(cdr(a)) then
+        return({car(a), cdr(a)})
+      else
+        return(cons(car(a), ac_arglist(cdr(a))))
+      end
+    end
+  end
+end
+function ac_call(f, args, env)
+  if xcar(f) == "fn" then
+    return(join({ac(f, env)}, ac_args(cadr(f), args, env)))
+  else
+    return({"ar-apply", ac(f, env), join({"list"}, map(function (x)
+      return(ac(x, env))
+    end, args))})
+  end
+end
+function ac_args(names, exprs, env)
+  if null63(exprs) then
+    return({})
+  else
+    local _e1
+    if pair63(names) then
+      _e1 = car(names)
+    end
+    local _e2
+    if pair63(names) then
+      _e2 = cdr(names)
+    else
+      _e2 = {}
+    end
+    return(cons(ac(car(exprs), ac_dbname33(_e1, env)), ac_args(_e2, cdr(exprs), env)))
+  end
+end
+function ar_apply(f, args)
+  if function63(f) then
+    return(apply(f, args))
+  else
+    if not atom63(f) then
+      return(f[car(args) + 1])
+    else
+      if string63(f) then
+        return(char(f, car(args)))
+      else
+        error("ar-apply: bad " .. string(f) .. " " .. string(args))
+      end
+    end
   end
 end
 local delimiters = {["("] = true, [")"] = true, ["\n"] = true, [";"] = true}
