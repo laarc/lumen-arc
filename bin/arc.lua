@@ -220,7 +220,27 @@ __list = function (...)
   local lst = unstash({...})
   return(lst)
 end
-__43 = _43
+function arc_list63(x)
+  return(pair63(x) or x == "nil" or x == {})
+end
+__43 = function (...)
+  local args = unstash({...})
+  if null63(args) then
+    return(0)
+  else
+    if string63(car(args)) then
+      return(apply(cat, map(function (x)
+        return(ar_coerce(x, "string"))
+      end, args)))
+    else
+      if arc_list63(car(args)) then
+        return(ac_niltree(apply(join, map(ar_nil_terminate, args))))
+      else
+        return(apply(_43, args))
+      end
+    end
+  end
+end
 ___ = _
 __47 = _47
 __42 = _42
@@ -300,6 +320,13 @@ function ar_apply(f, args)
         error("ar-apply: bad " .. string(f) .. " " .. string(args))
       end
     end
+  end
+end
+function ar_nil_terminate(l)
+  if null63(l) or l == {} or l == "nil" then
+    return({})
+  else
+    return(cons(car(l), ar_nil_terminate(cdr(l))))
   end
 end
 local delimiters = {["("] = true, [")"] = true, ["\n"] = true, [";"] = true}

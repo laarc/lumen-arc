@@ -220,7 +220,27 @@ __list = function () {
   var lst = unstash(Array.prototype.slice.call(arguments, 0));
   return(lst);
 };
-__43 = _43;
+arc_list63 = function (x) {
+  return(pair63(x) || x === "nil" || x === []);
+};
+__43 = function () {
+  var args = unstash(Array.prototype.slice.call(arguments, 0));
+  if (null63(args)) {
+    return(0);
+  } else {
+    if (string63(car(args))) {
+      return(apply(cat, map(function (x) {
+        return(ar_coerce(x, "string"));
+      }, args)));
+    } else {
+      if (arc_list63(car(args))) {
+        return(ac_niltree(apply(join, map(ar_nil_terminate, args))));
+      } else {
+        return(apply(_43, args));
+      }
+    }
+  }
+};
 ___ = _;
 __47 = _47;
 __42 = _42;
@@ -300,6 +320,13 @@ ar_apply = function (f, args) {
         throw new Error("ar-apply: bad " + string(f) + " " + string(args));
       }
     }
+  }
+};
+ar_nil_terminate = function (l) {
+  if (null63(l) || l === [] || l === "nil") {
+    return([]);
+  } else {
+    return(cons(car(l), ar_nil_terminate(cdr(l))));
   }
 };
 var delimiters = {"(": true, ")": true, "\n": true, ";": true};

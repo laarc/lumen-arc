@@ -173,7 +173,18 @@
 
 (xdef list (fn lst lst))
 
-(xdef + +)
+(define-global arc-list? (x)
+  (or (pair? x) (= x 'nil) (= x '())))
+
+(xdef + (fn args
+  (if (null? args) 0
+    (string? (car args))
+     (apply cat (map (fn (x) (ar-coerce x 'string))
+                     args))
+    (arc-list? (car args))
+     (ac-niltree (apply join (map ar-nil-terminate args)))
+    (apply + args))))
+
 (xdef - -)
 (xdef / /)
 (xdef * *)
@@ -227,6 +238,15 @@
     (not (atom? f)) (at f (car args))
     (string? f) (char f (car args))
     (error (cat "ar-apply: bad " (string f) " " (string args)))))
+
+
+; replace the nil at the end of a list with a '()
+
+(define-global ar-nil-terminate (l)
+  (if (or (null? l) (= l '()) (= l 'nil))
+      '()
+      (cons (car l) (ar-nil-terminate (cdr l)))))
+
 
 ;
 ; reader
