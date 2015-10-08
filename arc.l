@@ -2,6 +2,9 @@
 (define-global reader (require 'reader))
 (define-global compiler (require 'compiler))
 
+(define-global read-table (get reader 'read-table))
+(define-global read-all (get reader 'read-all))
+(define-global reader-stream (get reader 'stream))
 
 (define-global ac (x env)
   (set env (or env ()))
@@ -68,7 +71,7 @@
 (define-global cddr (x)
   (cdr (cdr x)))
 
-(define-global cons (x y) ; doesn't work when (and (atom? x) (atom? y))
+(define-global cons (x y)
   (if (atom? y)
     (if y
       `(,x ,dot ,y)
@@ -454,20 +457,20 @@
           (if (not (or (nil? n) (nan? n) (inf? n))) n
             str))))))
 
-(let f (get reader.read-table "\"")
+(let f (get read-table "\"")
   (define ac-read-string (s)
     (let str (f s)
       (if (not str) ""
         (escape str)))))
 
 (define-global arc-read (s)
-  (let (old-atom (get reader.read-table "")
-        old-str (get reader.read-table "\""))
-    (set (get reader.read-table "") ac-read-atom)
-    (set (get reader.read-table "\"") ac-read-string)
-    (let r (reader.read-all (reader.stream s))
-      (set (get reader.read-table "") old-atom)
-      (set (get reader.read-table "\"") old-str)
+  (let (old-atom (get read-table "")
+        old-str (get read-table "\""))
+    (set (get read-table "") ac-read-atom)
+    (set (get read-table "\"") ac-read-string)
+    (let r (read-all (reader-stream s))
+      (set (get read-table "") old-atom)
+      (set (get read-table "\"") old-str)
       r)))
 
 ;
@@ -507,6 +510,5 @@
                             y)))
                   (arc-read (inner e))))
     `(arc-eval ',e)))
-
 
 

@@ -1,5 +1,8 @@
 reader = require("reader");
 compiler = require("compiler");
+read_table = reader["read-table"];
+read_all = reader["read-all"];
+reader_stream = reader.stream;
 ac = function (x, env) {
   env = env || [];
   if (ac_string63(x)) {
@@ -577,7 +580,7 @@ var ac_read_atom = function (s) {
     }
   }
 };
-var _f = reader["read-table"]["\""];
+var _f = read_table["\""];
 var ac_read_string = function (s) {
   var str = _f(s);
   if (! str) {
@@ -587,13 +590,13 @@ var ac_read_string = function (s) {
   }
 };
 arc_read = function (s) {
-  var old_atom = reader["read-table"][""];
-  var old_str = reader["read-table"]["\""];
-  reader["read-table"][""] = ac_read_atom;
-  reader["read-table"]["\""] = ac_read_string;
-  var r = reader["read-all"](reader.stream(s));
-  reader["read-table"][""] = old_atom;
-  reader["read-table"]["\""] = old_str;
+  var old_atom = read_table[""];
+  var old_str = read_table["\""];
+  read_table[""] = ac_read_atom;
+  read_table["\""] = ac_read_string;
+  var r = read_all(reader_stream(s));
+  read_table[""] = old_atom;
+  read_table["\""] = old_str;
   return(r);
 };
 ar_coerce = function (x, type) {

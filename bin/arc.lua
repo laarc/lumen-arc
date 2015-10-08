@@ -1,5 +1,8 @@
 reader = require("reader")
 compiler = require("compiler")
+read_table = reader["read-table"]
+read_all = reader["read-all"]
+reader_stream = reader.stream
 function ac(x, env)
   env = env or {}
   if ac_string63(x) then
@@ -577,7 +580,7 @@ local function ac_read_atom(s)
     end
   end
 end
-local _f = reader["read-table"]["\""]
+local _f = read_table["\""]
 local function ac_read_string(s)
   local str = _f(s)
   if not str then
@@ -587,13 +590,13 @@ local function ac_read_string(s)
   end
 end
 function arc_read(s)
-  local old_atom = reader["read-table"][""]
-  local old_str = reader["read-table"]["\""]
-  reader["read-table"][""] = ac_read_atom
-  reader["read-table"]["\""] = ac_read_string
-  local r = reader["read-all"](reader.stream(s))
-  reader["read-table"][""] = old_atom
-  reader["read-table"]["\""] = old_str
+  local old_atom = read_table[""]
+  local old_str = read_table["\""]
+  read_table[""] = ac_read_atom
+  read_table["\""] = ac_read_string
+  local r = read_all(reader_stream(s))
+  read_table[""] = old_atom
+  read_table["\""] = old_str
   return(r)
 end
 function ar_coerce(x, type, ...)
