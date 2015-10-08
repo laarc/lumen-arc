@@ -15,6 +15,12 @@ if [ ! -e "${lumen}" ]; then
   lumen="${root}/lumen/bin/lumen"
 fi
 if [ ! -e "${lumen}" ]; then
+  cd "${root}"
+  echo "Getting lumen..."
+  git clone "https://github.com/sctb/lumen" "lumen"
+  cd "${dir}"
+fi
+if [ ! -e "${lumen}" ]; then
   2>&1 echo "lumen not found" && exit 1
 fi
 
@@ -57,7 +63,9 @@ fi
 
 # if the first arg exists, assume it's an arc script.
 if [ ! -z "$1" ]; then
-  stdin="`cat "$1"`" exec "${lumen}" "${code}" -e "${run_stdin}"
+  if [[ "$1" != "-e" ]]; then
+    stdin="`cat "$1"`" exec "${lumen}" "${code}" -e "${run_stdin}"
+  fi
 fi
 
 # start a repl, using rlwrap if it's available.
