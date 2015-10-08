@@ -1,0 +1,75 @@
+#!/bin/sh
+
+dir="$(pwd)"
+cd "$(dirname "$0")"
+bin="$(pwd)"
+cd ..
+home="$(pwd)"
+cd ..
+root="$(pwd)"
+cd "${dir}"
+obj="${home}/obj"
+
+lumen="$(which lumen)"
+if [ ! -e "${lumen}" ]; then
+  lumen="${root}/lumen/bin/lumen"
+fi
+if [ ! -e "${lumen}" ]; then
+  2>&1 echo "lumen not found" && exit 1
+fi
+
+if [ ! -z ${LUMEN_HOST} ]
+then
+    host=${LUMEN_HOST}
+elif luajit -v > /dev/null 2>&1
+then
+    host=luajit
+elif lua -v > /dev/null 2>&1
+then
+    host=lua
+elif node -v > /dev/null 2>&1
+then
+    host=node
+else
+    2>&1 echo "no host found" && exit 1
+fi
+
+case $host in
+    node*)
+        ext=js
+        export NODE_PATH="$NODE_PATH:${bin}:${dir}/lib";;
+    *)
+        ext=lua
+        export LUA_PATH="$LUA_PATH;${bin}/?.lua;${dir}/lib/?.lua;;";;
+esac
+
+
+# recompile.
+for target in "lua" "js"
+do
+  for path in "${home}"/*.l
+  do
+    # http://stackoverflow.com/questions/965053/extract-filename-and-extension-in-bash
+    file="$(basename "${path}")"
+    LUMEN_HOST=luajit "${lumen}" -c "${path}" -o "${obj}/${file%.*}.${target}" -t ${target}
+  done
+  cat "${obj}/"{base,arc}.${target} > "${bin}/arc.${target}"
+
+  cat "${home}/"{base,arc,test}.l > "${obj}/testing.l"
+  LUMEN_HOST=luajit "${lumen}" -c "${obj}/testing.l" -t ${target} > "${obj}/testing.${target}"
+done
+
+# run tests.
+for on in "luajit" "lua" "node"
+do
+  if [[ "${on}" == "node" ]]; then
+    code="${obj}/testing.js"
+  else
+    code="${obj}/testing.lua"
+  fi
+  echo "Testing ${on} host"
+  time LUMEN_HOST=${on} "${lumen}" "${code}" -e '(run)'
+  echo ""
+done
+
+

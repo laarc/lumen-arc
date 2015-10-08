@@ -8,14 +8,15 @@ home="$(pwd)"
 cd ..
 root="$(pwd)"
 cd "${dir}"
+obj="${home}/obj"
 
-lumen="${root}/lumen/bin/lumen"
-
-"${lumen}" -c "${home}/arc.l" -o "${home}/obj/arc.lua" -t lua
-"${lumen}" -c "${home}/arc.l" -o "${home}/obj/arc.js" -t js
-cp "${home}/obj/arc.lua" "${home}/bin/"
-cp "${home}/obj/arc.js" "${home}/bin/"
-
+lumen="$(which lumen)"
+if [ ! -e "${lumen}" ]; then
+  lumen="${root}/lumen/bin/lumen"
+fi
+if [ ! -e "${lumen}" ]; then
+  2>&1 echo "lumen not found" && exit 1
+fi
 
 if [ ! -z ${LUMEN_HOST} ]
 then
@@ -30,17 +31,40 @@ elif node -v > /dev/null 2>&1
 then
     host=node
 else
-    echo no host found
+    2>&1 echo "no host found" && exit 1
 fi
 
 case $host in
     node*)
-        code=arc.js
+        ext=js
         export NODE_PATH="$NODE_PATH:${bin}:${dir}/lib";;
     *)
-        code=arc.lua
+        ext=lua
         export LUA_PATH="$LUA_PATH;${bin}/?.lua;${dir}/lib/?.lua;;";;
 esac
 
-exec "`which rlwrap`" "${lumen}" "${home}/bin/${code}" "$@"
+code="${bin}/arc.${ext}"
+
+read -r -d '' run_stdin <<'EOF'
+(let in ((get (require 'system) 'get-environment-variable) 'stdin)
+  (arc-eval (join (list 'list) (arc-read in))) nil)
+EOF
+
+# run stdin as an arc script.
+if [ ! -t 0 ]; then
+  stdin="`cat`" exec "${lumen}" "${code}" -e "${run_stdin}"
+fi
+
+# if the first arg exists, assume it's an arc script.
+if [ ! -z "$1" ]; then
+  stdin="`cat "$1"`" exec "${lumen}" "${code}" -e "${run_stdin}"
+fi
+
+# start a repl, using rlwrap if it's available.
+wrap="$(which rlwrap)"
+if [ ! -z "${wrap}" ]; then
+  exec "${wrap}" "${lumen}" "${code}" "$@"
+else
+  exec           "${lumen}" "${code}" "$@"
+fi
 
