@@ -12,24 +12,35 @@
 ;
 
 (define-global Nil 'Nil)
+(define-global Dot 'Dot)
+(define-global Empty ())
 
-(define-global dot (unique "dot"))
+(define-global Nil? (x)
+  (if (atom? x)
+    (or (not x) (= x Nil))
+    (none? x)))
+
+(define-global xcar (x)
+  (when (not (atom? x))
+    (hd x)))
 
 (define-global car (x)
-  (if (not x) nil
+  (if (Nil? x) Empty
     (atom? x) (error (cat "car: expected list, got " (string x)))
-    (if (none? x) nil
+    (if (none? x) x
       (let v (hd x)
-        (if (= v dot)
+        (if (Nil? v) Empty
+          (= v Dot)
           (error (cat "car: bad cons " (string x)))
           v)))))
 
 (define-global cdr (x)
-  (if (not x) nil
+  (if (Nil? x) Empty
     (atom? x) (error (cat "cdr: expected list, got " (string x)))
-    (if (none? x) nil
+    (if (none? x) x
       (let v (tl x)
-        (if (= (xcar v) dot)
+        (if (Nil? v) Empty
+          (= (xcar v) Dot)
           (if (not (one? (tl v)))
             (error (cat "cdr: bad cons " (string x)))
             (hd (tl v)))
@@ -42,11 +53,16 @@
   (cdr (cdr x)))
 
 (define-global cons (x y)
-  (if (atom? y)
-    (if y
-      `(,x ,dot ,y)
-      `(,x))
-    `(,x ,@y)))
+  (if (and (Nil? x) (Nil? y)) `(,Nil)
+    (and (Nil? x) (not (Nil? y)))
+     (if (atom? y) `(,Nil ,Dot ,y)
+       `(,Nil ,@y))
+    (and (not (Nil? x)) (Nil? y))
+     `(,x)
+    (and (not (Nil? x)) (not (Nil? y)))
+     (if (atom? y)
+       `(,x ,Dot ,y)
+       `(,x ,@y))))
 
 (define-global pair? (x)
   (and (not (atom? x))

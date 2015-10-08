@@ -14,7 +14,7 @@
     (error (cat "Bad object in expression " (string x)))))
 
 (define-global ac-symbol? (x)
-  (string? x))
+  (and (string? x) (not (string-literal? x))))
 
 (define-global ac-string? (x)
   (string-literal? x))
@@ -27,10 +27,6 @@
       (ac-string? x)
       (number? x)
       (and (not (atom? x)) (none? x))))
-
-(define-global xcar (x)
-  (when (not (atom? x))
-    (hd x)))
 
 ; (if) -> nil
 ; (if x) -> x
@@ -61,8 +57,7 @@
 ; Lumen lists (e.g. . body of a macro).
 
 (define-global ar-false? (x)
-  (or (= x 'nil)
-      (= x nil)
+  (or (= x 'nil) (= x nil) (= x Nil)
       (= x '())
       (and (not (atom? x)) (none? x))))
 
@@ -72,16 +67,15 @@
 
 
 (define-global ac-denil (x)
-  (if (atom? x) x
-    (cons (ac-denil-car (car x)) (ac-denil-cdr (cdr x)))
-    x))
+  (if (or (atom? x) (null? x)) x
+    (cons (ac-denil-car (car x)) (ac-denil-cdr (cdr x)))))
 
 (define-global ac-denil-car (x)
   (if (= x 'nil) 'nil
     (ac-denil x)))
 
 (define-global ac-denil-cdr (x)
-  (if (= x 'nil) '()
+  (if (= x 'nil) nil
     (ac-denil x)))
 
 (define-global ac-niltree (x)
@@ -128,11 +122,14 @@
 (define-global arc-list? (x)
   (or (pair? x) (= x 'nil) (= x '())))
 
+(define-global ac-cat lst
+  (escape (apply cat (map (fn (x) (eval (ar-coerce x 'string))) lst))))
+
 (xdef + (fn args
+  ; (print (cat "+ " (string args)))
   (if (null? args) 0
-    (string? (car args))
-     (apply cat (map (fn (x) (ar-coerce x 'string))
-                     args))
+    (ac-string? (car args))
+     (apply ac-cat args)
     (arc-list? (car args))
      (ac-niltree (apply join (map ar-nil-terminate args)))
     (apply + args))))
@@ -271,9 +268,10 @@
     (cons (car a) (ac-arglist (cdr a)))))
 
 (define-global ac-call (f args env)
+  ; (print (cat "ac-call " (string f) " " (string args)))
   (if (= (xcar f) 'fn)
     `(,(ac f env) ,@(ac-args (cadr f) args env))
-    `(ar-apply ,(ac f env) (list ,@(map (fn (x) (ac x env)) args)))))
+    `(ar-apply ,(ac f env) (list ,@(map (fn (x) (ac x env)) (or args ()))))))
 
 ; returns false or the macro function
 
@@ -317,6 +315,7 @@
 
 
 (define-global ar-apply (f args)
+  ; (print (cat "ar-apply " (string f) " " (string args)))
   (if (function? f) (apply f args)
     (not (atom? f)) (at f (car args))
     (string? f) (char f (car args))
@@ -353,14 +352,17 @@
   (if
     (= type (ar-type x)) x
     (ar-tagged? x) (error "Can't coerce annotated object")
+    (ac-symbol? x) (if
+                     (= type 'string) (escape x)
+                     (error (cat "Can't coerce " (string x) (string type))))
     (ac-string? x) (if
                      (= type 'num) (number x)
                      (= type 'int) (number x) ; TODO
+                     (= type 'sym) (eval x)
                      (error (cat "Can't coerce " (string x) (string type))))
     (number? x)    (if
                      (= type 'string) (string x)
-                     (error (cat "Can't coerce " (string x) (string type))))
-    ))
+                     (error (cat "Can't coerce " (string x) (string type))))))
 
 (xdef coerce ar-coerce)
 
@@ -370,7 +372,9 @@
 ;
 
 (define-global arc-eval (expr)
-  (eval (ac expr ())))
+  (let x (eval (ac expr ()))
+    (if (string? x) (eval x)
+      x)))
 
 (xdef eval (fn (e) (eval (ac (ac-denil e) ()))))
   
@@ -381,6 +385,6 @@
                           (if (function? y) 'nil 
                             y)))
                   (arc-read (inner e))))
-    `(arc-eval ',e)))
+    `(ac-denil (arc-eval ',e))))
 
 

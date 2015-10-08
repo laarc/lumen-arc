@@ -4,46 +4,67 @@ read_table = reader["read-table"];
 read_all = reader["read-all"];
 reader_stream = reader.stream;
 Nil = "Nil";
-dot = unique("dot");
+Dot = "Dot";
+Empty = [];
+Nil63 = function (x) {
+  if (atom63(x)) {
+    return(! x || x === Nil);
+  } else {
+    return(none63(x));
+  }
+};
+xcar = function (x) {
+  if (! atom63(x)) {
+    return(hd(x));
+  }
+};
 car = function (x) {
-  if (! x) {
-    return(undefined);
+  if (Nil63(x)) {
+    return(Empty);
   } else {
     if (atom63(x)) {
       throw new Error("car: expected list, got " + string(x));
     } else {
       if (none63(x)) {
-        return(undefined);
+        return(x);
       } else {
         var v = hd(x);
-        if (v === dot) {
-          throw new Error("car: bad cons " + string(x));
+        if (Nil63(v)) {
+          return(Empty);
         } else {
-          return(v);
+          if (v === Dot) {
+            throw new Error("car: bad cons " + string(x));
+          } else {
+            return(v);
+          }
         }
       }
     }
   }
 };
 cdr = function (x) {
-  if (! x) {
-    return(undefined);
+  if (Nil63(x)) {
+    return(Empty);
   } else {
     if (atom63(x)) {
       throw new Error("cdr: expected list, got " + string(x));
     } else {
       if (none63(x)) {
-        return(undefined);
+        return(x);
       } else {
         var v = tl(x);
-        if (xcar(v) === dot) {
-          if (! one63(tl(v))) {
-            throw new Error("cdr: bad cons " + string(x));
-          } else {
-            return(hd(tl(v)));
-          }
+        if (Nil63(v)) {
+          return(Empty);
         } else {
-          return(v);
+          if (xcar(v) === Dot) {
+            if (! one63(tl(v))) {
+              throw new Error("cdr: bad cons " + string(x));
+            } else {
+              return(hd(tl(v)));
+            }
+          } else {
+            return(v);
+          }
         }
       }
     }
@@ -56,14 +77,28 @@ cddr = function (x) {
   return(cdr(cdr(x)));
 };
 cons = function (x, y) {
-  if (atom63(y)) {
-    if (y) {
-      return([x, dot, y]);
-    } else {
-      return([x]);
-    }
+  if (Nil63(x) && Nil63(y)) {
+    return([Nil]);
   } else {
-    return(join([x], y));
+    if (Nil63(x) && ! Nil63(y)) {
+      if (atom63(y)) {
+        return([Nil, Dot, y]);
+      } else {
+        return(join([Nil], y));
+      }
+    } else {
+      if (! Nil63(x) && Nil63(y)) {
+        return([x]);
+      } else {
+        if (! Nil63(x) && ! Nil63(y)) {
+          if (atom63(y)) {
+            return([x, Dot, y]);
+          } else {
+            return(join([x], y));
+          }
+        }
+      }
+    }
   }
 };
 pair63 = function (x) {
@@ -208,7 +243,7 @@ ac = function (x, env) {
   }
 };
 ac_symbol63 = function (x) {
-  return(string63(x));
+  return(string63(x) && ! string_literal63(x));
 };
 ac_string63 = function (x) {
   return(string_literal63(x));
@@ -218,11 +253,6 @@ ac_string = function (x, env) {
 };
 ac_literal63 = function (x) {
   return(boolean63(x) || ac_string63(x) || number63(x) || ! atom63(x) && none63(x));
-};
-xcar = function (x) {
-  if (! atom63(x)) {
-    return(hd(x));
-  }
 };
 ac_if = function (args, env) {
   if (null63(args)) {
@@ -254,15 +284,13 @@ ac_dbname = function (env) {
   }
 };
 ar_false63 = function (x) {
-  return(x === "nil" || x === undefined || x === [] || ! atom63(x) && none63(x));
+  return(x === "nil" || x === undefined || x === Nil || x === [] || ! atom63(x) && none63(x));
 };
 ac_denil = function (x) {
-  if (atom63(x)) {
+  if (atom63(x) || null63(x)) {
     return(x);
   } else {
-    if (cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x)))) {
-      return(x);
-    }
+    return(cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x))));
   }
 };
 ac_denil_car = function (x) {
@@ -274,7 +302,7 @@ ac_denil_car = function (x) {
 };
 ac_denil_cdr = function (x) {
   if (x === "nil") {
-    return([]);
+    return(undefined);
   } else {
     return(ac_denil(x));
   }
@@ -323,15 +351,19 @@ __list = function () {
 arc_list63 = function (x) {
   return(pair63(x) || x === "nil" || x === []);
 };
+ac_cat = function () {
+  var lst = unstash(Array.prototype.slice.call(arguments, 0));
+  return(escape(apply(cat, map(function (x) {
+    return(eval(ar_coerce(x, "string")));
+  }, lst))));
+};
 __43 = function () {
   var args = unstash(Array.prototype.slice.call(arguments, 0));
   if (null63(args)) {
     return(0);
   } else {
-    if (string63(car(args))) {
-      return(apply(cat, map(function (x) {
-        return(ar_coerce(x, "string"));
-      }, args)));
+    if (ac_string63(car(args))) {
+      return(apply(ac_cat, args));
     } else {
       if (arc_list63(car(args))) {
         return(ac_niltree(apply(join, map(ar_nil_terminate, args))));
@@ -518,7 +550,7 @@ ac_call = function (f, args, env) {
   } else {
     return(["ar-apply", ac(f, env), join(["list"], map(function (x) {
       return(ac(x, env));
-    }, args))]);
+    }, args || []))]);
   }
 };
 ac_macro63 = function (f) {
@@ -574,8 +606,8 @@ ar_apply = function (f, args) {
   }
 };
 __apply = function (f) {
-  var _r44 = unstash(Array.prototype.slice.call(arguments, 1));
-  var _id = _r44;
+  var _r43 = unstash(Array.prototype.slice.call(arguments, 1));
+  var _id = _r43;
   var args = cut(_id, 0);
   return(ar_apply(f, ar_apply_args(args)));
 };
@@ -598,8 +630,8 @@ ar_apply_args = function (args) {
   }
 };
 ar_coerce = function (x, type) {
-  var _r47 = unstash(Array.prototype.slice.call(arguments, 2));
-  var _id1 = _r47;
+  var _r46 = unstash(Array.prototype.slice.call(arguments, 2));
+  var _id1 = _r46;
   var args = cut(_id1, 0);
   if (type === ar_type(x)) {
     return(x);
@@ -607,22 +639,34 @@ ar_coerce = function (x, type) {
     if (ar_tagged63(x)) {
       throw new Error("Can't coerce annotated object");
     } else {
-      if (ac_string63(x)) {
-        if (type === "num") {
-          return(number(x));
+      if (ac_symbol63(x)) {
+        if (type === "string") {
+          return(escape(x));
         } else {
-          if (type === "int") {
-            return(number(x));
-          } else {
-            throw new Error("Can't coerce " + string(x) + string(type));
-          }
+          throw new Error("Can't coerce " + string(x) + string(type));
         }
       } else {
-        if (number63(x)) {
-          if (type === "string") {
-            return(string(x));
+        if (ac_string63(x)) {
+          if (type === "num") {
+            return(number(x));
           } else {
-            throw new Error("Can't coerce " + string(x) + string(type));
+            if (type === "int") {
+              return(number(x));
+            } else {
+              if (type === "sym") {
+                return(eval(x));
+              } else {
+                throw new Error("Can't coerce " + string(x) + string(type));
+              }
+            }
+          }
+        } else {
+          if (number63(x)) {
+            if (type === "string") {
+              return(string(x));
+            } else {
+              throw new Error("Can't coerce " + string(x) + string(type));
+            }
           }
         }
       }
@@ -631,7 +675,12 @@ ar_coerce = function (x, type) {
 };
 __coerce = ar_coerce;
 arc_eval = function (expr) {
-  return(eval(ac(expr, [])));
+  var x = eval(ac(expr, []));
+  if (string63(x)) {
+    return(eval(x));
+  } else {
+    return(x);
+  }
 };
 __eval = function (e) {
   return(eval(ac(ac_denil(e), [])));
@@ -647,6 +696,6 @@ setenv("arc", {_stash: true, macro: function (e) {
       }
     }, arc_read(inner(e)))));
   } else {
-    return(["arc-eval", ["quote", e]]);
+    return(["ac-denil", ["arc-eval", ["quote", e]]]);
   }
 }});

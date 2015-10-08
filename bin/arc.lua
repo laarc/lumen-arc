@@ -4,46 +4,67 @@ read_table = reader["read-table"]
 read_all = reader["read-all"]
 reader_stream = reader.stream
 Nil = "Nil"
-dot = unique("dot")
+Dot = "Dot"
+Empty = {}
+function Nil63(x)
+  if atom63(x) then
+    return(not x or x == Nil)
+  else
+    return(none63(x))
+  end
+end
+function xcar(x)
+  if not atom63(x) then
+    return(hd(x))
+  end
+end
 function car(x)
-  if not x then
-    return(nil)
+  if Nil63(x) then
+    return(Empty)
   else
     if atom63(x) then
       error("car: expected list, got " .. string(x))
     else
       if none63(x) then
-        return(nil)
+        return(x)
       else
         local v = hd(x)
-        if v == dot then
-          error("car: bad cons " .. string(x))
+        if Nil63(v) then
+          return(Empty)
         else
-          return(v)
+          if v == Dot then
+            error("car: bad cons " .. string(x))
+          else
+            return(v)
+          end
         end
       end
     end
   end
 end
 function cdr(x)
-  if not x then
-    return(nil)
+  if Nil63(x) then
+    return(Empty)
   else
     if atom63(x) then
       error("cdr: expected list, got " .. string(x))
     else
       if none63(x) then
-        return(nil)
+        return(x)
       else
         local v = tl(x)
-        if xcar(v) == dot then
-          if not one63(tl(v)) then
-            error("cdr: bad cons " .. string(x))
-          else
-            return(hd(tl(v)))
-          end
+        if Nil63(v) then
+          return(Empty)
         else
-          return(v)
+          if xcar(v) == Dot then
+            if not one63(tl(v)) then
+              error("cdr: bad cons " .. string(x))
+            else
+              return(hd(tl(v)))
+            end
+          else
+            return(v)
+          end
         end
       end
     end
@@ -56,14 +77,28 @@ function cddr(x)
   return(cdr(cdr(x)))
 end
 function cons(x, y)
-  if atom63(y) then
-    if y then
-      return({x, dot, y})
-    else
-      return({x})
-    end
+  if Nil63(x) and Nil63(y) then
+    return({Nil})
   else
-    return(join({x}, y))
+    if Nil63(x) and not Nil63(y) then
+      if atom63(y) then
+        return({Nil, Dot, y})
+      else
+        return(join({Nil}, y))
+      end
+    else
+      if not Nil63(x) and Nil63(y) then
+        return({x})
+      else
+        if not Nil63(x) and not Nil63(y) then
+          if atom63(y) then
+            return({x, Dot, y})
+          else
+            return(join({x}, y))
+          end
+        end
+      end
+    end
   end
 end
 function pair63(x)
@@ -208,7 +243,7 @@ function ac(x, env)
   end
 end
 function ac_symbol63(x)
-  return(string63(x))
+  return(string63(x) and not string_literal63(x))
 end
 function ac_string63(x)
   return(string_literal63(x))
@@ -218,11 +253,6 @@ function ac_string(x, env)
 end
 function ac_literal63(x)
   return(boolean63(x) or ac_string63(x) or number63(x) or not atom63(x) and none63(x))
-end
-function xcar(x)
-  if not atom63(x) then
-    return(hd(x))
-  end
 end
 function ac_if(args, env)
   if null63(args) then
@@ -254,15 +284,13 @@ function ac_dbname(env)
   end
 end
 function ar_false63(x)
-  return(x == "nil" or x == nil or x == {} or not atom63(x) and none63(x))
+  return(x == "nil" or x == nil or x == Nil or x == {} or not atom63(x) and none63(x))
 end
 function ac_denil(x)
-  if atom63(x) then
+  if atom63(x) or null63(x) then
     return(x)
   else
-    if cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x))) then
-      return(x)
-    end
+    return(cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x))))
   end
 end
 function ac_denil_car(x)
@@ -274,7 +302,7 @@ function ac_denil_car(x)
 end
 function ac_denil_cdr(x)
   if x == "nil" then
-    return({})
+    return(nil)
   else
     return(ac_denil(x))
   end
@@ -323,15 +351,19 @@ end
 function arc_list63(x)
   return(pair63(x) or x == "nil" or x == {})
 end
+function ac_cat(...)
+  local lst = unstash({...})
+  return(escape(apply(cat, map(function (x)
+    return(eval(ar_coerce(x, "string")))
+  end, lst))))
+end
 __43 = function (...)
   local args = unstash({...})
   if null63(args) then
     return(0)
   else
-    if string63(car(args)) then
-      return(apply(cat, map(function (x)
-        return(ar_coerce(x, "string"))
-      end, args)))
+    if ac_string63(car(args)) then
+      return(apply(ac_cat, args))
     else
       if arc_list63(car(args)) then
         return(ac_niltree(apply(join, map(ar_nil_terminate, args))))
@@ -518,7 +550,7 @@ function ac_call(f, args, env)
   else
     return({"ar-apply", ac(f, env), join({"list"}, map(function (x)
       return(ac(x, env))
-    end, args))})
+    end, args or {}))})
   end
 end
 function ac_macro63(f)
@@ -574,8 +606,8 @@ function ar_apply(f, args)
   end
 end
 __apply = function (f, ...)
-  local _r44 = unstash({...})
-  local _id = _r44
+  local _r43 = unstash({...})
+  local _id = _r43
   local args = cut(_id, 0)
   return(ar_apply(f, ar_apply_args(args)))
 end
@@ -598,8 +630,8 @@ function ar_apply_args(args)
   end
 end
 function ar_coerce(x, type, ...)
-  local _r47 = unstash({...})
-  local _id1 = _r47
+  local _r46 = unstash({...})
+  local _id1 = _r46
   local args = cut(_id1, 0)
   if type == ar_type(x) then
     return(x)
@@ -607,22 +639,34 @@ function ar_coerce(x, type, ...)
     if ar_tagged63(x) then
       error("Can't coerce annotated object")
     else
-      if ac_string63(x) then
-        if type == "num" then
-          return(number(x))
+      if ac_symbol63(x) then
+        if type == "string" then
+          return(escape(x))
         else
-          if type == "int" then
-            return(number(x))
-          else
-            error("Can't coerce " .. string(x) .. string(type))
-          end
+          error("Can't coerce " .. string(x) .. string(type))
         end
       else
-        if number63(x) then
-          if type == "string" then
-            return(string(x))
+        if ac_string63(x) then
+          if type == "num" then
+            return(number(x))
           else
-            error("Can't coerce " .. string(x) .. string(type))
+            if type == "int" then
+              return(number(x))
+            else
+              if type == "sym" then
+                return(eval(x))
+              else
+                error("Can't coerce " .. string(x) .. string(type))
+              end
+            end
+          end
+        else
+          if number63(x) then
+            if type == "string" then
+              return(string(x))
+            else
+              error("Can't coerce " .. string(x) .. string(type))
+            end
           end
         end
       end
@@ -631,7 +675,12 @@ function ar_coerce(x, type, ...)
 end
 __coerce = ar_coerce
 function arc_eval(expr)
-  return(eval(ac(expr, {})))
+  local x = eval(ac(expr, {}))
+  if string63(x) then
+    return(eval(x))
+  else
+    return(x)
+  end
 end
 __eval = function (e)
   return(eval(ac(ac_denil(e), {})))
@@ -647,6 +696,6 @@ setenv("arc", {_stash = true, macro = function (e)
       end
     end, arc_read(inner(e)))))
   else
-    return({"arc-eval", {"quote", e}})
+    return({"ac-denil", {"arc-eval", {"quote", e}}})
   end
 end})
