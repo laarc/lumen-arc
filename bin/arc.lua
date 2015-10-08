@@ -3,68 +3,7 @@ compiler = require("compiler")
 read_table = reader["read-table"]
 read_all = reader["read-all"]
 reader_stream = reader.stream
-function ac(x, env)
-  env = env or {}
-  if ac_string63(x) then
-    return(ac_string(x, env))
-  else
-    if ac_literal63(x) then
-      return(x)
-    else
-      if x == "nil" then
-        return({"quote", "nil"})
-      else
-        if ac_symbol63(x) then
-          return(ac_var_ref(x, env))
-        else
-          if xcar(x) == "quote" then
-            return({"quote", ac_niltree(cadr(x))})
-          else
-            if xcar(x) == "if" then
-              return(ac_if(cdr(x), env))
-            else
-              if xcar(x) == "fn" then
-                return(ac_fn(cadr(x), cddr(x), env))
-              else
-                if xcar(x) == "assign" then
-                  return(ac_set(cdr(x), env))
-                else
-                  if not atom63(x) then
-                    return(ac_call(car(x), cdr(x), env))
-                  else
-                    error("Bad object in expression " .. string(x))
-                  end
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-end
-function ac_symbol63(x)
-  return(string63(x))
-end
-function ac_string63(x)
-  return(string_literal63(x))
-end
-function ac_string(x, env)
-  return(escape(x))
-end
-function ac_literal63(x)
-  return(boolean63(x) or ac_string63(x) or number63(x) or not atom63(x) and none63(x))
-end
-function xcar(x)
-  if not atom63(x) then
-    return(hd(x))
-  end
-end
-function xcdr(x)
-  if not atom63(x) then
-    return(tl(x))
-  end
-end
+Nil = "Nil"
 dot = unique("dot")
 function car(x)
   if not x then
@@ -133,6 +72,158 @@ end
 function null63(x)
   return(not is63(x) or pair63(x) and none63(x))
 end
+vector_type = unique("vec")
+function vector(...)
+  local xs = unstash({...})
+  return(join({vector_type}, xs))
+end
+function vector63(x)
+  return(pair63(x) and car(x) == vector_type)
+end
+function vector_ref(x, i)
+  if not vector63(x) then
+    error("vector-ref: expected vector, got " .. string(x))
+  end
+  return(x[i + 1 + 1])
+end
+local delimiters = {["("] = true, [")"] = true, ["\n"] = true, [";"] = true}
+local whitespace = {[" "] = true, ["\n"] = true, ["\t"] = true}
+local function peek_char(s)
+  local _id = s
+  local pos = _id.pos
+  local len = _id.len
+  local string = _id.string
+  if pos < len then
+    return(char(string, pos))
+  end
+end
+local function read_char(s)
+  local c = peek_char(s)
+  if c then
+    s.pos = s.pos + 1
+    return(c)
+  end
+end
+local function skip_non_code(s)
+  while true do
+    local c = peek_char(s)
+    if nil63(c) then
+      break
+    else
+      if whitespace[c] then
+        read_char(s)
+      else
+        if c == ";" then
+          while c and not( c == "\n") do
+            c = read_char(s)
+          end
+          skip_non_code(s)
+        else
+          break
+        end
+      end
+    end
+  end
+end
+local literals = {["-nan"] = 0 / 0, ["false"] = false, nan = 0 / 0, ["true"] = true, ["-inf"] = -1 / 0, inf = 1 / 0}
+local function ac_read_atom(s)
+  local str = ""
+  while true do
+    local c = peek_char(s)
+    if c and (not whitespace[c] and not delimiters[c]) then
+      str = str .. read_char(s)
+    else
+      break
+    end
+  end
+  local x = literals[str]
+  if is63(x) then
+    return(x)
+  else
+    local n = number(str)
+    if not( nil63(n) or nan63(n) or inf63(n)) then
+      return(n)
+    else
+      return(str)
+    end
+  end
+end
+local _f = read_table["\""]
+local function ac_read_string(s)
+  local str = _f(s)
+  if not str then
+    return("")
+  else
+    return(escape(str))
+  end
+end
+function arc_read(s)
+  local old_atom = read_table[""]
+  local old_str = read_table["\""]
+  read_table[""] = ac_read_atom
+  read_table["\""] = ac_read_string
+  local r = read_all(reader_stream(s))
+  read_table[""] = old_atom
+  read_table["\""] = old_str
+  return(r)
+end
+function ac(x, env)
+  env = env or {}
+  if ac_string63(x) then
+    return(ac_string(x, env))
+  else
+    if ac_literal63(x) then
+      return(x)
+    else
+      if x == "nil" then
+        return({"quote", "nil"})
+      else
+        if ac_symbol63(x) then
+          return(ac_var_ref(x, env))
+        else
+          if xcar(x) == "quote" then
+            return({"quote", ac_niltree(cadr(x))})
+          else
+            if xcar(x) == "if" then
+              return(ac_if(cdr(x), env))
+            else
+              if xcar(x) == "fn" then
+                return(ac_fn(cadr(x), cddr(x), env))
+              else
+                if xcar(x) == "assign" then
+                  return(ac_set(cdr(x), env))
+                else
+                  if not atom63(x) then
+                    return(ac_call(car(x), cdr(x), env))
+                  else
+                    error("Bad object in expression " .. string(x))
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+function ac_symbol63(x)
+  return(string63(x))
+end
+function ac_string63(x)
+  return(string_literal63(x))
+end
+function ac_string(x, env)
+  return(escape(x))
+end
+function ac_literal63(x)
+  return(boolean63(x) or ac_string63(x) or number63(x) or not atom63(x) and none63(x))
+end
+function xcar(x)
+  if not atom63(x) then
+    return(hd(x))
+  end
+end
 function ac_if(args, env)
   if null63(args) then
     return({"quote", "nil"})
@@ -166,10 +257,12 @@ function ar_false63(x)
   return(x == "nil" or x == nil or x == {} or not atom63(x) and none63(x))
 end
 function ac_denil(x)
-  if not atom63(x) then
-    return(cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x))))
-  else
+  if atom63(x) then
     return(x)
+  else
+    if cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x))) then
+      return(x)
+    end
   end
 end
 function ac_denil_car(x)
@@ -271,20 +364,6 @@ __len = function (x)
   else
     return(_35(ar_nil_terminate(x)))
   end
-end
-vector_type = unique("vec")
-function vector(...)
-  local xs = unstash({...})
-  return(join({vector_type}, xs))
-end
-function vector63(x)
-  return(pair63(x) and car(x) == vector_type)
-end
-function vector_ref(x, i)
-  if not vector63(x) then
-    error("vector-ref: expected vector, got " .. string(x))
-  end
-  return(x[i + 1 + 1])
 end
 function ar_tagged63(x)
   return(vector63(x) and vector_ref(x, 0) == "tagged")
@@ -495,8 +574,8 @@ function ar_apply(f, args)
   end
 end
 __apply = function (f, ...)
-  local _r54 = unstash({...})
-  local _id = _r54
+  local _r44 = unstash({...})
+  local _id = _r44
   local args = cut(_id, 0)
   return(ar_apply(f, ar_apply_args(args)))
 end
@@ -518,91 +597,10 @@ function ar_apply_args(args)
     end
   end
 end
-local delimiters = {["("] = true, [")"] = true, ["\n"] = true, [";"] = true}
-local whitespace = {[" "] = true, ["\n"] = true, ["\t"] = true}
-local function peek_char(s)
-  local _id1 = s
-  local pos = _id1.pos
-  local len = _id1.len
-  local string = _id1.string
-  if pos < len then
-    return(char(string, pos))
-  end
-end
-local function read_char(s)
-  local c = peek_char(s)
-  if c then
-    s.pos = s.pos + 1
-    return(c)
-  end
-end
-local function skip_non_code(s)
-  while true do
-    local c = peek_char(s)
-    if nil63(c) then
-      break
-    else
-      if whitespace[c] then
-        read_char(s)
-      else
-        if c == ";" then
-          while c and not( c == "\n") do
-            c = read_char(s)
-          end
-          skip_non_code(s)
-        else
-          break
-        end
-      end
-    end
-  end
-end
-local literals = {["-nan"] = 0 / 0, ["false"] = false, nan = 0 / 0, ["true"] = true, ["-inf"] = -1 / 0, inf = 1 / 0}
-local function ac_read_atom(s)
-  local str = ""
-  while true do
-    local c = peek_char(s)
-    if c and (not whitespace[c] and not delimiters[c]) then
-      str = str .. read_char(s)
-    else
-      break
-    end
-  end
-  local x = literals[str]
-  if is63(x) then
-    return(x)
-  else
-    local n = number(str)
-    if not( nil63(n) or nan63(n) or inf63(n)) then
-      return(n)
-    else
-      return(str)
-    end
-  end
-end
-local _f = read_table["\""]
-local function ac_read_string(s)
-  local str = _f(s)
-  if not str then
-    return("")
-  else
-    return(escape(str))
-  end
-end
-function arc_read(s)
-  local old_atom = read_table[""]
-  local old_str = read_table["\""]
-  read_table[""] = ac_read_atom
-  read_table["\""] = ac_read_string
-  local r = read_all(reader_stream(s))
-  read_table[""] = old_atom
-  read_table["\""] = old_str
-  return(r)
-end
 function ar_coerce(x, type, ...)
-  local _r63 = unstash({...})
-  local _id2 = _r63
-  local args = cut(_id2, 0)
+  local _r47 = unstash({...})
+  local _id1 = _r47
+  local args = cut(_id1, 0)
   if type == ar_type(x) then
     return(x)
   else

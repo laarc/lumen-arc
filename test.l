@@ -32,5 +32,13 @@
 
 (define-test eval ()
   (test= 42 (arc-eval 42))
-  (test= 42 (arc 42)))
+  (test= 42 (arc 42))
+  (test= '(1 2 3) (arc (list 1 2 3))))
+
+; (define-test cons ()
+;   (test= '(1) (arc (cons 1 nil))))
+
+; (define-test + ()
+;   (test= '(1 2 3 4 5 6) (arc 42)))
+
 

@@ -3,68 +3,7 @@ compiler = require("compiler");
 read_table = reader["read-table"];
 read_all = reader["read-all"];
 reader_stream = reader.stream;
-ac = function (x, env) {
-  env = env || [];
-  if (ac_string63(x)) {
-    return(ac_string(x, env));
-  } else {
-    if (ac_literal63(x)) {
-      return(x);
-    } else {
-      if (x === "nil") {
-        return(["quote", "nil"]);
-      } else {
-        if (ac_symbol63(x)) {
-          return(ac_var_ref(x, env));
-        } else {
-          if (xcar(x) === "quote") {
-            return(["quote", ac_niltree(cadr(x))]);
-          } else {
-            if (xcar(x) === "if") {
-              return(ac_if(cdr(x), env));
-            } else {
-              if (xcar(x) === "fn") {
-                return(ac_fn(cadr(x), cddr(x), env));
-              } else {
-                if (xcar(x) === "assign") {
-                  return(ac_set(cdr(x), env));
-                } else {
-                  if (! atom63(x)) {
-                    return(ac_call(car(x), cdr(x), env));
-                  } else {
-                    throw new Error("Bad object in expression " + string(x));
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-};
-ac_symbol63 = function (x) {
-  return(string63(x));
-};
-ac_string63 = function (x) {
-  return(string_literal63(x));
-};
-ac_string = function (x, env) {
-  return(escape(x));
-};
-ac_literal63 = function (x) {
-  return(boolean63(x) || ac_string63(x) || number63(x) || ! atom63(x) && none63(x));
-};
-xcar = function (x) {
-  if (! atom63(x)) {
-    return(hd(x));
-  }
-};
-xcdr = function (x) {
-  if (! atom63(x)) {
-    return(tl(x));
-  }
-};
+Nil = "Nil";
 dot = unique("dot");
 car = function (x) {
   if (! x) {
@@ -133,6 +72,158 @@ pair63 = function (x) {
 null63 = function (x) {
   return(! is63(x) || pair63(x) && none63(x));
 };
+vector_type = unique("vec");
+vector = function () {
+  var xs = unstash(Array.prototype.slice.call(arguments, 0));
+  return(join([vector_type], xs));
+};
+vector63 = function (x) {
+  return(pair63(x) && car(x) === vector_type);
+};
+vector_ref = function (x, i) {
+  if (! vector63(x)) {
+    throw new Error("vector-ref: expected vector, got " + string(x));
+  }
+  return(x[i + 1]);
+};
+var delimiters = {"(": true, ")": true, "\n": true, ";": true};
+var whitespace = {" ": true, "\n": true, "\t": true};
+var peek_char = function (s) {
+  var _id = s;
+  var pos = _id.pos;
+  var len = _id.len;
+  var string = _id.string;
+  if (pos < len) {
+    return(char(string, pos));
+  }
+};
+var read_char = function (s) {
+  var c = peek_char(s);
+  if (c) {
+    s.pos = s.pos + 1;
+    return(c);
+  }
+};
+var skip_non_code = function (s) {
+  while (true) {
+    var c = peek_char(s);
+    if (nil63(c)) {
+      break;
+    } else {
+      if (whitespace[c]) {
+        read_char(s);
+      } else {
+        if (c === ";") {
+          while (c && !( c === "\n")) {
+            c = read_char(s);
+          }
+          skip_non_code(s);
+        } else {
+          break;
+        }
+      }
+    }
+  }
+};
+var literals = {"-nan": 0 / 0, "false": false, nan: 0 / 0, "true": true, "-inf": -1 / 0, inf: 1 / 0};
+var ac_read_atom = function (s) {
+  var str = "";
+  while (true) {
+    var c = peek_char(s);
+    if (c && (! whitespace[c] && ! delimiters[c])) {
+      str = str + read_char(s);
+    } else {
+      break;
+    }
+  }
+  var x = literals[str];
+  if (is63(x)) {
+    return(x);
+  } else {
+    var n = number(str);
+    if (!( nil63(n) || nan63(n) || inf63(n))) {
+      return(n);
+    } else {
+      return(str);
+    }
+  }
+};
+var _f = read_table["\""];
+var ac_read_string = function (s) {
+  var str = _f(s);
+  if (! str) {
+    return("");
+  } else {
+    return(escape(str));
+  }
+};
+arc_read = function (s) {
+  var old_atom = read_table[""];
+  var old_str = read_table["\""];
+  read_table[""] = ac_read_atom;
+  read_table["\""] = ac_read_string;
+  var r = read_all(reader_stream(s));
+  read_table[""] = old_atom;
+  read_table["\""] = old_str;
+  return(r);
+};
+ac = function (x, env) {
+  env = env || [];
+  if (ac_string63(x)) {
+    return(ac_string(x, env));
+  } else {
+    if (ac_literal63(x)) {
+      return(x);
+    } else {
+      if (x === "nil") {
+        return(["quote", "nil"]);
+      } else {
+        if (ac_symbol63(x)) {
+          return(ac_var_ref(x, env));
+        } else {
+          if (xcar(x) === "quote") {
+            return(["quote", ac_niltree(cadr(x))]);
+          } else {
+            if (xcar(x) === "if") {
+              return(ac_if(cdr(x), env));
+            } else {
+              if (xcar(x) === "fn") {
+                return(ac_fn(cadr(x), cddr(x), env));
+              } else {
+                if (xcar(x) === "assign") {
+                  return(ac_set(cdr(x), env));
+                } else {
+                  if (! atom63(x)) {
+                    return(ac_call(car(x), cdr(x), env));
+                  } else {
+                    throw new Error("Bad object in expression " + string(x));
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+ac_symbol63 = function (x) {
+  return(string63(x));
+};
+ac_string63 = function (x) {
+  return(string_literal63(x));
+};
+ac_string = function (x, env) {
+  return(escape(x));
+};
+ac_literal63 = function (x) {
+  return(boolean63(x) || ac_string63(x) || number63(x) || ! atom63(x) && none63(x));
+};
+xcar = function (x) {
+  if (! atom63(x)) {
+    return(hd(x));
+  }
+};
 ac_if = function (args, env) {
   if (null63(args)) {
     return(["quote", "nil"]);
@@ -166,10 +257,12 @@ ar_false63 = function (x) {
   return(x === "nil" || x === undefined || x === [] || ! atom63(x) && none63(x));
 };
 ac_denil = function (x) {
-  if (! atom63(x)) {
-    return(cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x))));
-  } else {
+  if (atom63(x)) {
     return(x);
+  } else {
+    if (cons(ac_denil_car(car(x)), ac_denil_cdr(cdr(x)))) {
+      return(x);
+    }
   }
 };
 ac_denil_car = function (x) {
@@ -271,20 +364,6 @@ __len = function (x) {
   } else {
     return(_35(ar_nil_terminate(x)));
   }
-};
-vector_type = unique("vec");
-vector = function () {
-  var xs = unstash(Array.prototype.slice.call(arguments, 0));
-  return(join([vector_type], xs));
-};
-vector63 = function (x) {
-  return(pair63(x) && car(x) === vector_type);
-};
-vector_ref = function (x, i) {
-  if (! vector63(x)) {
-    throw new Error("vector-ref: expected vector, got " + string(x));
-  }
-  return(x[i + 1]);
 };
 ar_tagged63 = function (x) {
   return(vector63(x) && vector_ref(x, 0) === "tagged");
@@ -495,8 +574,8 @@ ar_apply = function (f, args) {
   }
 };
 __apply = function (f) {
-  var _r54 = unstash(Array.prototype.slice.call(arguments, 1));
-  var _id = _r54;
+  var _r44 = unstash(Array.prototype.slice.call(arguments, 1));
+  var _id = _r44;
   var args = cut(_id, 0);
   return(ar_apply(f, ar_apply_args(args)));
 };
@@ -518,91 +597,10 @@ ar_apply_args = function (args) {
     }
   }
 };
-var delimiters = {"(": true, ")": true, "\n": true, ";": true};
-var whitespace = {" ": true, "\n": true, "\t": true};
-var peek_char = function (s) {
-  var _id1 = s;
-  var pos = _id1.pos;
-  var len = _id1.len;
-  var string = _id1.string;
-  if (pos < len) {
-    return(char(string, pos));
-  }
-};
-var read_char = function (s) {
-  var c = peek_char(s);
-  if (c) {
-    s.pos = s.pos + 1;
-    return(c);
-  }
-};
-var skip_non_code = function (s) {
-  while (true) {
-    var c = peek_char(s);
-    if (nil63(c)) {
-      break;
-    } else {
-      if (whitespace[c]) {
-        read_char(s);
-      } else {
-        if (c === ";") {
-          while (c && !( c === "\n")) {
-            c = read_char(s);
-          }
-          skip_non_code(s);
-        } else {
-          break;
-        }
-      }
-    }
-  }
-};
-var literals = {"-nan": 0 / 0, "false": false, nan: 0 / 0, "true": true, "-inf": -1 / 0, inf: 1 / 0};
-var ac_read_atom = function (s) {
-  var str = "";
-  while (true) {
-    var c = peek_char(s);
-    if (c && (! whitespace[c] && ! delimiters[c])) {
-      str = str + read_char(s);
-    } else {
-      break;
-    }
-  }
-  var x = literals[str];
-  if (is63(x)) {
-    return(x);
-  } else {
-    var n = number(str);
-    if (!( nil63(n) || nan63(n) || inf63(n))) {
-      return(n);
-    } else {
-      return(str);
-    }
-  }
-};
-var _f = read_table["\""];
-var ac_read_string = function (s) {
-  var str = _f(s);
-  if (! str) {
-    return("");
-  } else {
-    return(escape(str));
-  }
-};
-arc_read = function (s) {
-  var old_atom = read_table[""];
-  var old_str = read_table["\""];
-  read_table[""] = ac_read_atom;
-  read_table["\""] = ac_read_string;
-  var r = read_all(reader_stream(s));
-  read_table[""] = old_atom;
-  read_table["\""] = old_str;
-  return(r);
-};
 ar_coerce = function (x, type) {
-  var _r63 = unstash(Array.prototype.slice.call(arguments, 2));
-  var _id2 = _r63;
-  var args = cut(_id2, 0);
+  var _r47 = unstash(Array.prototype.slice.call(arguments, 2));
+  var _id1 = _r47;
+  var args = cut(_id1, 0);
   if (type === ar_type(x)) {
     return(x);
   } else {
